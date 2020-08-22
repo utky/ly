@@ -7,7 +7,7 @@
 
   :ly.handler.index/get {}
   :duct.middleware.web/defaults
-  {:static {:resources ["duct/module/web/public" "ly/public"]}} 
+  {:static {:resources ["ly/public"]}}
   }
 
  :duct.profile/dev   #duct/include "dev"

@@ -1,0 +1,24 @@
+{
+ :duct.profile/base
+ {:duct.core/project-ns ly
+
+  :duct.router/ataraxy
+  {:routes {[:get "/"] [:ly.handler.index/get]}}
+
+  :ly.handler.index/get {}
+  :duct.middleware.web/defaults
+  {:static {:resources ["duct/module/web/public" "ly/public"]}} 
+  }
+
+ :duct.profile/dev   #duct/include "dev"
+ :duct.profile/local #duct/include "local"
+ :duct.profile/prod {}
+
+
+ :duct.module/logging {}
+ :duct.module.web/api {}
+
+
+ :duct.module/cljs
+ {:main ly.client}
+ }

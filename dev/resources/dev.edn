@@ -1,0 +1,4 @@
+{:duct.core/environment :development
+ :duct.module/sql
+ {:database-url "jdbc:h2:mem:"} 
+ }

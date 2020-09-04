@@ -9,7 +9,12 @@
                  [duct/module.logging "0.4.0"]
                  [duct/module.web "0.7.0"]
                  [duct/module.sql "0.6.0"]
-                 [com.h2database/h2 "1.4.200"]]
+                 [com.h2database/h2 "1.4.200"]
+
+                 [reagent "1.0.0-alpha2"]
+                 [re-frame "1.1.1"]
+                 [day8.re-frame/http-fx "0.2.1"]
+                 [cljs-ajax "0.8.1"]]
   :plugins [[duct/lein-duct "0.12.1"]]
   :main ^:skip-aot ly.main
   :resource-paths ["resources" "target/resources"]

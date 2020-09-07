@@ -5,7 +5,8 @@
             [day8.re-frame.http-fx]
             [ajax.core :as ajax]
             [goog.events :as events]
-            [clojure.string :as str]))
+            [clojure.string :as str]
+            [ly.ui.main :as main]))
 
 ;; -- Key event -------------------------------------------------------------
 (rf/reg-event-fx
@@ -30,8 +31,7 @@
 ;; -- Entry Point -------------------------------------------------------------
 
 (defn app []
-  [:div.test
-   [:input {:type "text" :placeholder "input"}]])
+  [main/main])
 
 (defn ^:export run
   []

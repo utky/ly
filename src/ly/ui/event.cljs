@@ -6,3 +6,8 @@
  :init
  (fn [_ _]
    db/init))
+
+(reg-event-db
+ :select-task
+ (fn [db [_ task-id]]
+   (assoc db ::db/selected task-id)))

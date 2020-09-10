@@ -4,8 +4,9 @@
             [ly.core.task :as t]
             [re-frame.core :refer [subscribe dispatch]]))
 
-(defn task [t]
+(defn task [t selected]
   [:div.level
+   {:style (assoc (if selected {:background-color "#FFFFE0"} {}) :padding "5px")} 
    [:div.level-left
     [:div.level-item
      [:span (::t/summary t)]]]
@@ -15,7 +16,8 @@
       "●--"]]]])
 
 (defn lane [header]
-  (let [backlog @(subscribe [:backlog])]
+  (let [backlog     @(subscribe [:backlog])
+        selected-id @(subscribe [:selected])]
     [:div.column
    {:style {:border-left-color "#dbdbdb"
             :border-left-style "solid"
@@ -24,7 +26,10 @@
     [:h1.title header]
     [:ul
       (for [t backlog]
-        [:li [task t]])]]]))
+        [:li
+         {:on-click #(dispatch [:select-task (::t/id t)])
+          :key (::t/id t)}
+         [task t (= selected-id (::t/id t))]])]]]))
 
 (defn pomodoro-status []
   [:div

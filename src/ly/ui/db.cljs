@@ -4,7 +4,15 @@
             [ly.core.task :as t]))
 
 (s/def ::backlog (s/* ::t/task))
-(s/def ::db (s/keys :req [::backlog]))
+(s/def ::selected ::t/id)
+(s/def ::db
+  (s/keys
+   :req
+   [::backlog
+    ]
+   :opt
+   [::selected
+    ]))
 
 (def init
   (s/conform ::db

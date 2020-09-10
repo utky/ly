@@ -1,25 +1,30 @@
 (ns ly.ui.main
   (:require [reagent.core :as r]
             [reagent.dom :as rd]
-            [re-frame.core :as rf]))
+            [ly.core.task :as t]
+            [re-frame.core :refer [subscribe dispatch]]))
 
-(defn task []
+(defn task [t]
   [:div.level
    [:div.level-left
-    [:div.level-item [:span "task"]]]
+    [:div.level-item
+     [:span (::t/summary t)]]]
    [:div.level-right
-    [:div.level-item [:span "*--"]]]])
+    [:div.level-item
+     [:span {:style { :color "red" :font-size "20px" :font-weight "bolder" }}
+      "●--"]]]])
 
 (defn lane [header]
-  [:div.column
+  (let [backlog @(subscribe [:backlog])]
+    [:div.column
    {:style {:border-left-color "#dbdbdb"
             :border-left-style "solid"
             :border-left-width "1px"}}
    [:div
     [:h1.title header]
     [:ul
-      [:li [task]]
-      [:li [task]]]]])
+      (for [t backlog]
+        [:li [task t]])]]]))
 
 (defn pomodoro-status []
   [:div

@@ -6,6 +6,8 @@
             [ajax.core :as ajax]
             [goog.events :as events]
             [clojure.string :as str]
+            [ly.ui.event]
+            [ly.ui.sub]
             [ly.ui.main :as main]))
 
 ;; -- Key event -------------------------------------------------------------
@@ -37,5 +39,6 @@
   []
   (js/document.addEventListener "keydown" (fn [e] (js/console.log "handle keydown" e) (rf/dispatch [:keydown e])))
   (js/document.addEventListener "keyup" (fn [e] (js/console.log "handle keyup" e) (rf/dispatch [:keyup e])))
+  (rf/dispatch-sync [:init])
   (rdom/render [app]              ;; mount the application's ui into '<div id="app" />'
     (js/document.getElementById "app")))

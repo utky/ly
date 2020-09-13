@@ -77,6 +77,11 @@ But you can also run tests through Leiningen.
 lein test
 ```
 
+## 
+
+Icons from Octicons
+https://primer.style/octicons/
+
 ## Legal
 
 Copyright © 2020 FIXME

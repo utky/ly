@@ -37,8 +37,8 @@
 
 (defn ^:export run
   []
-  (js/document.addEventListener "keydown" (fn [e] (js/console.log "handle keydown" e) (rf/dispatch [:keydown e])))
-  (js/document.addEventListener "keyup" (fn [e] (js/console.log "handle keyup" e) (rf/dispatch [:keyup e])))
+  ;; (js/document.addEventListener "keydown" (fn [e] (js/console.log "handle keydown" e) (rf/dispatch [:keydown e])))
+  ;; (js/document.addEventListener "keyup" (fn [e] (js/console.log "handle keyup" e) (rf/dispatch [:keyup e])))
   (rf/dispatch-sync [:init])
   (rdom/render [app]              ;; mount the application's ui into '<div id="app" />'
     (js/document.getElementById "app")))

@@ -6,6 +6,14 @@
  :backlog
  (fn [db _]
    (::db/backlog db)))
+(reg-sub
+ :todo
+ (fn [db _]
+   (::db/todo db)))
+(reg-sub
+ :done
+ (fn [db _]
+   (::db/done db)))
 
 (reg-sub
  :selected

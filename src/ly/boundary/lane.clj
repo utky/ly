@@ -11,5 +11,9 @@
   (list-lanes [db]
     (core/query
      db
-     (sql/format {:select [:id :name :created_at :updated_at] :from [:lanes]}))))
+     (sql/format
+      {:select
+       [:id :name :created-at :updated-at]
+       :from
+       [:lanes]}))))
 

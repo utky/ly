@@ -9,7 +9,7 @@
     {"/lanes"
      {[:get] [:ly.handler.lanes/list]}
      "/tasks"
-     {[:get] [:ly.handler.tasks/list]
+     {[:get #{?lane-id}] [:ly.handler.tasks/list ?lane-id]
       [:post {task :body-params}] [:ly.handler.tasks/new task]}}
     }}
 

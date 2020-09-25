@@ -8,6 +8,7 @@
   (s/keys
    :req
    [::entering
+    ::t/lane-id
     ::t/summary
     ::t/estimate
     ::t/tags]))
@@ -16,6 +17,7 @@
   (s/conform
    ::new-task
    {::entering true
+    ::t/lane-id 1
     ::t/summary ""
     ::t/estimate 0
     ::t/tags []}))
@@ -25,14 +27,12 @@
 (s/def ::backlog
   (s/keys
    :req
-   [::new-task
-    ::tasks]))
+   [::tasks]))
 
 (s/def ::todo
   (s/keys
    :req
-   [::new-task
-    ::tasks]))
+   [::tasks]))
 
 (s/def ::done
   (s/keys
@@ -43,7 +43,8 @@
 (s/def ::db
   (s/keys
    :req
-   [::backlog
+   [::new-task
+    ::backlog
     ::todo
     ::done]
    :opt
@@ -52,18 +53,16 @@
 
 (def init
   (s/conform ::db
-    {::backlog
-     {::new-task
-      (init-task)
-      ::tasks
-      [{::t/id 1 ::t/summary "backlog1" ::t/estimate 1 ::t/tags ["plan"]}]}
+    {::new-task
+     (init-task)
+     ::backlog
+     {::tasks
+      [{::t/id 1 ::t/lane-id 1 ::t/summary "backlog1" ::t/estimate 1 ::t/tags ["plan"]}]}
 
      ::todo
-     {::new-task
-      (init-task)
-      ::tasks
-      [{::t/id 2 ::t/summary "todo1" ::t/estimate 2 ::t/tags ["do"]}]}
+     {::tasks
+      [{::t/id 2 ::t/lane-id 2 ::t/summary "todo1" ::t/estimate 2 ::t/tags ["do"]}]}
 
      ::done
      {::tasks
-      [{::t/id 3 ::t/summary "done1" ::t/estimate 3 ::t/tags ["check"]}]}}))
+      [{::t/id 3 ::t/lane-id 2 ::t/summary "done1" ::t/estimate 3 ::t/tags ["check"]}]}}))

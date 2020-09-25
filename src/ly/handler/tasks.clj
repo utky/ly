@@ -5,8 +5,8 @@
    [ly.boundary.task :as boundary]))
 
 (defmethod ig/init-key ::list [_ {:keys [db]}]
-  (fn [{[_] :ataraxy/result}]
-    [::response/ok (boundary/list-tasks db)]))
+  (fn [{[_ lane-id] :ataraxy/result}]
+    [::response/ok (boundary/list-tasks db lane-id)]))
 
 (defmethod ig/init-key ::new [_ {:keys [db]}]
   (fn [{[_ task] :ataraxy/result}]

@@ -14,8 +14,11 @@
  :done
  (fn [db _]
    (::db/done db)))
-
 (reg-sub
  :selected
  (fn [db _]
    (::db/selected db)))
+(reg-sub
+ :new-task
+ (fn [db _]
+   (::db/new-task db)))

@@ -5,19 +5,25 @@
             [ly.boundary.core :as core]))
 
 (defprotocol Task 
-  (list-tasks [db])
+  (list-tasks [db lane-id])
   (new-task [db task]))
 
 (extend-protocol Task
   duct.database.sql.Boundary
-  (list-tasks [db]
+  (list-tasks [db lane-id]
     (core/query
      db
-     (sql/format {:select [:id :summary :lane_id :created_at :updated_at] :from [:tasks]})))
+     (sql/format
+      (merge 
+       {:select
+       [:id :summary :lane-id :created-at :updated-at]
+       :from
+       [:tasks]}
+       (if lane-id {:where [:= :lane-id lane-id]} {})))))
   (new-task [db task]
     (core/execute!
      db
     (-> (insert-into :tasks)
-        (columns :summary :lane_id)
-        (values [[(:summary task) (:lane_id task)]])
+        (columns :summary :lane-id)
+        (values [[(:summary task) (:lane-id task)]])
         sql/format))))

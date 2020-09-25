@@ -16,13 +16,9 @@
 (reg-event-db
  :change-new-summary
  (fn [db [_ value lane-key]]
-   (js/console.log "value" value)
-   (js/console.log "lane-key" lane-key)
    (assoc-in db [lane-key ::db/new-task ::t/summary] value)))
 
 (reg-event-db
  :change-new-estimate
  (fn [db [_ value lane-key]]
-   (js/console.log "value" value)
-   (js/console.log "lane-key" lane-key)
    (assoc-in db [lane-key ::db/new-task ::t/estimate] value)))

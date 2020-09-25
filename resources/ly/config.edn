@@ -3,22 +3,103 @@
  {:duct.core/project-ns ly
 
   :duct.router/ataraxy
-  {:routes {[:get "/"] [:ly.handler.index/get]}}
+  {:routes
+   {[:get "/"] [:ly.handler.index/get]
+    "/api"
+    {"/lanes"
+     {[:get] [:ly.handler.lanes/list]}
+     "/tasks"
+     {[:get] [:ly.handler.tasks/list]
+      [:post {task :body-params}] [:ly.handler.tasks/new task]}}
+    }}
 
   :ly.handler.index/get {}
+  :ly.handler.lanes/list {:db #ig/ref :duct.database/sql}
+  :ly.handler.tasks/list {:db #ig/ref :duct.database/sql}
+  :ly.handler.tasks/new {:db #ig/ref :duct.database/sql}
+
   :duct.middleware.web/defaults
   {:static {:resources ["ly/public"]}}
+
+  :duct.migrator/ragtime
+  {:migrations [#ig/ref :ly.migration/initial]}
+
+  [:duct.migrator.ragtime/sql :ly.migration/initial]
+  {:up
+   ["CREATE TABLE lanes (
+       id tinyint,
+       name varchar NOT NULL,
+       created_at timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+       updated_at timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+       PRIMARY KEY (id)
+     );"
+
+    "INSERT INTO lanes(id, name) VALUES (1, 'backlog');"
+    "INSERT INTO lanes(id, name) VALUES (2, 'todo');"
+
+    "CREATE TABLE tasks (
+       id integer AUTO_INCREMENT,
+       lane_id tinyint,
+       summary varchar NOT NULL,
+       created_at timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+       updated_at timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+       PRIMARY KEY (id),
+       FOREIGN KEY (lane_id) REFERENCES lanes (id)
+     )"
+
+    "CREATE TABLE archives (
+       id integer AUTO_INCREMENT,
+       lane_id integer,
+       summary varchar NOT NULL,
+       created_at timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+       updated_at timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+       PRIMARY KEY (id),
+       FOREIGN KEY (lane_id) REFERENCES lanes (id)
+     );"
+
+    "CREATE TABLE estimates (
+       id integer AUTO_INCREMENT,
+       task_id integer,
+       value integer NOT NULL,
+       created_at timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+       updated_at timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+       PRIMARY KEY (id),
+       FOREIGN KEY (task_id) REFERENCES tasks (id)
+     );"
+
+    "CREATE TABLE pomodoros (
+       id integer AUTO_INCREMENT,
+       task_id integer,
+       started_at timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+       finished_at timestamp,
+       PRIMARY KEY (id),
+       FOREIGN KEY (task_id) REFERENCES tasks (id)
+     );"
+    
+    "CREATE TABLE interruptions (
+       id integer AUTO_INCREMENT,
+       task_id integer,
+       external boolean,
+       created_at timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+       PRIMARY KEY (id),
+       FOREIGN KEY (task_id) REFERENCES tasks (id)
+     );"]
+    
+
+   :down
+   ["DROP TABLE pomodoros;"
+    "DROP TABLE estimates;"
+    "DROP TABLE archives;"
+    "DROP TABLE tasks;"
+    "DROP TABLE lanes;"]}
   }
 
  :duct.profile/dev   #duct/include "dev"
  :duct.profile/local #duct/include "local"
  :duct.profile/prod {}
 
-
  :duct.module/logging {}
  :duct.module.web/api {}
-
-
- :duct.module/cljs
- {:main ly.client}
+ :duct.module/cljs {:main ly.client}
+ :duct.module/sql {}
  }

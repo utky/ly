@@ -1,7 +1,8 @@
 (ns ly.ui.db
   (:require [clojure.spec.alpha :as s]
             [re-frame.core :as rf]
-            [ly.core.task :as t]))
+            [ly.core.task :as t]
+            [ly.core.lane :as l]))
 
 (s/def ::entering boolean?)
 (s/def ::new-task
@@ -39,13 +40,22 @@
    :req
    [::tasks]))
 
+(s/def ::lane
+  (s/keys
+   :req
+   [::l/id
+    ::l/name]
+   :opt
+   [::tasks]))
+
+(s/def ::lanes (s/* ::lane))
+
 (s/def ::selected ::t/id)
 (s/def ::db
   (s/keys
    :req
    [::new-task
-    ::backlog
-    ::todo
+    ::lanes
     ::done]
    :opt
    [::selected
@@ -55,14 +65,10 @@
   (s/conform ::db
     {::new-task
      (init-task)
-     ::backlog
-     {::tasks
-      [{::t/id 1 ::t/lane-id 1 ::t/summary "backlog1" ::t/estimate 1 ::t/tags ["plan"]}]}
 
-     ::todo
-     {::tasks
-      [{::t/id 2 ::t/lane-id 2 ::t/summary "todo1" ::t/estimate 2 ::t/tags ["do"]}]}
+     ::lanes
+     []
 
      ::done
      {::tasks
-      [{::t/id 3 ::t/lane-id 2 ::t/summary "done1" ::t/estimate 3 ::t/tags ["check"]}]}}))
+      []}}))

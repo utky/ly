@@ -10,4 +10,4 @@
 
 (defmethod ig/init-key ::new [_ {:keys [db]}]
   (fn [{[_ task] :ataraxy/result}]
-    [::response/created (boundary/new-task db task)]))
+    [::response/ok (boundary/new-task db task)]))

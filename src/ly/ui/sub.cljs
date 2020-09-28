@@ -22,3 +22,7 @@
  :new-task
  (fn [db _]
    (::db/new-task db)))
+(reg-sub
+ :lanes
+ (fn [db _]
+   (::db/lanes db)))

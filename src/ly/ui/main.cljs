@@ -2,6 +2,7 @@
   (:require [reagent.core :as r]
             [reagent.dom :as rd]
             [ly.core.task :as t]
+            [ly.core.lane :as l]
             [ly.ui.db :as db]
             [re-frame.core :refer [subscribe dispatch]]))
 
@@ -28,7 +29,7 @@
         :value (::t/estimate new-task)
         :on-change #(dispatch [:change-new-estimate (-> % .-target .-value)])}]]
      [:div.control
-      [:input.button
+      [:input.button.is-primary
        {:type "button"
         :value "add"
         :on-click #(dispatch [:submit-new-task @(subscribe [:new-task])])}]]]))
@@ -62,24 +63,20 @@
       [:span {:style {:margin-left "5px" :margin-right "5px"}} "/"]
       [:span "3"]]]]])
 
-(defn lane [header lane-name lane-db-key]
-  (let [lane-data     @(subscribe [lane-name])
-        selected-id @(subscribe [:selected])]
+(defn lane [state]
+  (let [selected-id @(subscribe [:selected])]
     [:div.column
-   {:style {:border-left-color "#dbdbdb"
-            :border-left-style "solid"
-            :border-left-width "1px"}}
-   [:div
-    [:h1.title header]
-    (if (get-in lane-data [::db/new-task ::db/entering])
-      [new-task-form (::db/new-task lane-data) lane-db-key]
-      nil)
-    [:ul
-      (for [t (::db/tasks lane-data)]
-        [:li
-         {:on-click #(dispatch [:select-task (::t/id t)])
-          :key (::t/id t)}
-         [task t (= selected-id (::t/id t))]])]]]))
+     {:style {:border-left-color "#dbdbdb"
+              :border-left-style "solid"
+              :border-left-width "1px"}}
+     [:div
+      [:h1.title (::l/name state)]
+      [:ul
+        (for [t (::db/tasks state)]
+          [:li
+           {:on-click #(dispatch [:select-task (::t/id t)])
+            :key (::t/id t)}
+           [task t (= selected-id (::t/id t))]])]]]))
 
 (defn pomodoro-status []
   [:div
@@ -109,6 +106,6 @@
      [new-task-form]]]
 
    [:div.columns
-    [lane "backlog" :backlog ::db/backlog]
-    [lane "todo" :todo ::db/todo]
+    (for [l @(subscribe [:lanes])]
+      [lane l])
     [lane "done" :done ::db/done]]])

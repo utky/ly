@@ -59,14 +59,15 @@
    [:div.level-right
     [:div.level-item
      [:div
-      [:span "2"]
+      [:span (::t/done t)]
       [:span {:style {:margin-left "5px" :margin-right "5px"}} "/"]
-      [:span "3"]]]]])
+      [:span (::t/estimate t)]]]]])
 
 (defn lane [state]
   (let [selected-id @(subscribe [:selected])]
     [:div.column
-     {:style {:border-left-color "#dbdbdb"
+     {:key (::l/id state)
+      :style {:border-left-color "#dbdbdb"
               :border-left-style "solid"
               :border-left-width "1px"}}
      [:div
@@ -93,6 +94,12 @@
      [:div.navbar-item
       [pomodoro-status]]]]])
 
+(defn lanes []
+  (let [backlog-todo @(subscribe [:lanes])
+        done @(subscribe [:done])]
+    (conj (map (fn [l] [lane l]) backlog-todo)
+          [lane {::l/id 0 ::l/name "done" ::db/tasks (::db/tasks done)}])))
+
 (defn main []
   [:div.container
    [status-bar]
@@ -106,6 +113,7 @@
      [new-task-form]]]
 
    [:div.columns
-    (for [l @(subscribe [:lanes])]
+    (concat
+     (for [l @(subscribe [:lanes])]
       [lane l])
-    [lane "done" :done ::db/done]]])
+     [[lane {::l/id 0 ::l/name "done" ::db/tasks (::db/tasks @(subscribe [:done]))}]])]])

@@ -28,7 +28,7 @@
   {:up
    ["CREATE TABLE lanes (
        id tinyint,
-       name varchar NOT NULL,
+       name varchar NOT NULL UNIQUE,
        created_at timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
        updated_at timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
        PRIMARY KEY (id)
@@ -39,16 +39,18 @@
 
     "CREATE TABLE tasks (
        id integer AUTO_INCREMENT,
+       uuid varchar(36) NOT NULL UNIQUE,
        lane_id tinyint,
        summary varchar NOT NULL,
        created_at timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
        updated_at timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
        PRIMARY KEY (id),
        FOREIGN KEY (lane_id) REFERENCES lanes (id)
-     )"
+     );"
 
     "CREATE TABLE archives (
-       id integer AUTO_INCREMENT,
+       id integer,
+       uuid varchar(36) NOT NULL UNIQUE,
        lane_id integer,
        summary varchar NOT NULL,
        created_at timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,

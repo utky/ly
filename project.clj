@@ -12,6 +12,7 @@
                  [com.h2database/h2 "1.4.200"]
                  [honeysql "1.0.444"]
                  [duct/database.sql "0.1.0"]
+                 [duct/database.sql.hikaricp "0.4.0"]
 
                  [reagent "1.0.0-alpha2"]
                  [re-frame "1.1.1"]

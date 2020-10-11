@@ -1,3 +1,3 @@
 {;;:duct.core/environment :development
- :duct.database/sql {:connection-uri "jdbc:h2:mem:"}
+ :duct.database.sql/hikaricp {:jdbc-url "jdbc:h2:mem:ly"}
  }

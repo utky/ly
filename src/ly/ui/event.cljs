@@ -17,6 +17,9 @@
  (fn [db [_ task-id]]
    (assoc db ::db/selected task-id)))
 
+;; ------------------------------------
+;; New task
+;; ------------------------------------
 (reg-event-db
  :change-new-summary
  (fn [db [_ value]]

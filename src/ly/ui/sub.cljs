@@ -3,6 +3,10 @@
             [ly.ui.db :as db]))
 
 (reg-sub
+ :timer
+ (fn [db _]
+   (::db/timer db)))
+(reg-sub
  :backlog
  (fn [db _]
    (::db/backlog db)))

@@ -1,5 +1,5 @@
 (ns ly.ui.event
-  (:require [re-frame.core :refer [reg-event-db reg-event-fx]]
+  (:require [re-frame.core :refer [reg-event-db reg-event-fx reg-fx dispatch]]
             [ly.core.task :as t]
             [ly.core.lane :as l]
             [ly.ui.db :as db]
@@ -119,3 +119,67 @@
  :submit-new-task-fail
  (fn [db _]
    db))
+
+;; ------------------------------------
+;; Timer
+;; ------------------------------------
+
+(defn dispatch-timer-event
+  []
+  (let [now (js/Date.)]
+    (dispatch [:timer-tick now])))
+
+(reg-fx
+ :timer
+ (fn [{:keys [command] :as params}]
+   (let [timer-id (cond (= command :set)   (js/setInterval dispatch-timer-event 1000)
+                        (= command :unset) (js/clearInterval (:id params)))]
+     ;; FIXME debug
+     (println "timer-id" timer-id)
+     (if (not (nil? timer-id)) (dispatch [:timer-set timer-id]) nil))))
+
+(reg-event-fx
+ :timer-change
+ (fn [{:keys [db]} [_ next]]
+   (println "db" db)
+   (let [current    (get-in db [::db/timer ::db/timer-state])
+         timer-id   (get-in db [::db/timer ::db/timer-id])
+         timer-type (get-in db [::db/timer ::db/timer-type])
+         timer-fx (case [current next]
+                    [:running :running] nil
+                    [:running :stopped] {:command :unset :id timer-id}
+                    [:running :paused]  {:command :unset :id timer-id}
+                    [:stopped :running] {:command :set}
+                    [:stopped :paused]  nil
+                    [:stopped :stopped] nil
+                    [:paused  :running] {:command :set}
+                    [:paused  :stopped] nil
+                    [:paused  :paused]  nil)]
+     ;; FIXME debug
+     (println [current next] "timer-fx" timer-fx)
+     (cond-> {:db (assoc-in db [::db/timer ::db/timer-state] next)}
+       (= [current next] [:stopped :running]) (assoc-in [:db ::db/timer ::db/timer-remaining] (db/get-timer-seconds timer-type))
+       (= :stopped next)  (assoc-in [:db ::db/timer ::db/timer-remaining] 0)
+       ;; forget last-updated
+       (#{:paused :stopped} next)  (update-in [:db ::db/timer] #(dissoc % ::db/timer-last-updated))
+       (not (nil? timer-fx)) (assoc :timer timer-fx)))))
+
+(reg-event-db
+ :timer-set
+ (fn [db [_ timer-id]]
+   (assoc-in db [::db/timer ::db/timer-id] timer-id)))
+
+(reg-event-fx
+ :timer-tick
+ (fn [{:keys [db]} [_ now]]
+   (let [timer (::db/timer db)
+         last-updated (::db/timer-last-updated timer)
+         elapsed (if last-updated (/ (- (.getTime now) (.getTime last-updated)) 1000) 1) 
+         remaining (- (::db/timer-remaining timer) elapsed)
+         next-effect (if (<= remaining 0) {:fx [[:dispatch [:timer-change :stopped]]]} {})]
+     ;; FIXME debug
+     (println "elapsed" elapsed "remaining" remaining "next effect" next-effect)
+     (merge {:db (-> db
+                     (assoc-in [::db/timer ::db/timer-remaining] remaining)
+                     (assoc-in [::db/timer ::db/timer-last-updated] now))}
+            next-effect))))

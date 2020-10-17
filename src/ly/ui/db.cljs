@@ -4,6 +4,30 @@
             [ly.core.task :as t]
             [ly.core.lane :as l]))
 
+(defn get-timer-seconds [timer-type]
+  (* 60 (cond (= timer-type :pomodoro)    1;; 25
+              (= timer-type :short-break) 5
+              (= timer-type :long-break)  15
+              :else                       1)))
+(s/def ::timer-state #{:stopped :running :paused})
+(s/def ::timer-type #{:pomodoro :short-break :long-break})
+(s/def ::timer-remaining number?) ;; seconds
+(s/def ::timer-last-updated inst?)
+(s/def ::timer-id number?)
+(s/def ::timer
+       (s/keys
+        :req
+        [::timer-type
+         ::timer-state
+         ::timer-remaining]
+        :opt
+        [::timer-last-updated
+         ::timer-id]))
+(defn init-timer []
+  {::timer-type  :pomodoro
+   ::timer-state :stopped
+   ::timer-remaining 0})
+
 (s/def ::entering boolean?)
 (s/def ::new-task
   (s/keys
@@ -54,7 +78,8 @@
 (s/def ::db
   (s/keys
    :req
-   [::new-task
+   [::timer
+    ::new-task
     ::lanes
     ::done]
    :opt
@@ -63,7 +88,10 @@
 
 (def init
   (s/conform ::db
-    {::new-task
+    {::timer
+     (init-timer)
+     
+     ::new-task
      (init-task)
 
      ::lanes

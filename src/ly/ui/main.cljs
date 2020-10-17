@@ -4,7 +4,8 @@
             [ly.core.task :as t]
             [ly.core.lane :as l]
             [ly.ui.db :as db]
-            [re-frame.core :refer [subscribe dispatch]]))
+            [re-frame.core :refer [subscribe dispatch]]
+            [clojure.string :as string]))
 
 (defn new-task-form []
   (let [new-task @(subscribe [:new-task])
@@ -13,7 +14,7 @@
      [:div.control.select
       [:select
        {:value (::t/lane-id new-task)
-        :on-change #(dispatch [:change-new-lane-id (-> % .-target .-value)])}
+        :on-change #(dispatch [:cange-new-lane-id (-> % .-target .-value)])}
        (for [o options]
          [:option {:value (:id o) :key (:id o)} (:name o)])]]
      [:div.control
@@ -80,9 +81,24 @@
            [task t (= selected-id (::t/id t))]])]]]))
 
 (defn pomodoro-status []
-  [:div
-   [:span "09"]
-   [:progress.progress.is-danger {:value 15 :max 100}]])
+  (let [timer @(subscribe [:timer])
+        timer-type (::db/timer-type timer)
+        color (if (= :pomodoro timer-type) "is-danger" "is-success")
+        remaining (::db/timer-remaining timer)
+        state (::db/timer-state timer)
+        next-state (case state
+                     :stopped :running
+                     :running :paused
+                     :paused  :running)
+        remaining-min (quot remaining 60)
+        remaining-sec (mod remaining 60)
+        timer-max (db/get-timer-seconds timer-type)]
+    [:div
+     [:button.button
+      {:type "button"
+      :on-click #(dispatch [:timer-change next-state])} next-state]
+     [:span (str remaining-min ":" remaining-sec)]
+     [(keyword (string/join "." ["progress" "progress" color])) {:value remaining :max timer-max}]]))
 
 (defn status-bar []
   [:div.navbar

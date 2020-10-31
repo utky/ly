@@ -14,7 +14,7 @@
      [:div.control.select
       [:select
        {:value (::t/lane-id new-task)
-        :on-change #(dispatch [:cange-new-lane-id (-> % .-target .-value)])}
+        :on-change #(dispatch [:change-new-lane-id (-> % .-target .-value)])}
        (for [o options]
          [:option {:value (:id o) :key (:id o)} (:name o)])]]
      [:div.control
@@ -101,14 +101,18 @@
      [(keyword (string/join "." ["progress" "progress" color])) {:value remaining :max timer-max}]]))
 
 (defn status-bar []
-  [:div.navbar
-   [:div.navbar-menu
-    [:div.navbar-start
-     [:div.navbar-item
-      [:span.title "current working task "]]]
-    [:div.navbar-end
-     [:div.navbar-item
-      [pomodoro-status]]]]])
+  (let [current @(subscribe [:current])
+        todo    @(subscribe [:todo])
+        current-task (first (filter #(= (::t/id %) current) (::db/tasks todo)))]
+    (println "current-task" current-task)
+    [:div.navbar
+     [:div.navbar-menu
+      [:div.navbar-start
+       [:div.navbar-item
+        [:span.title (if current-task (::t/summary current-task) "")]]]
+      [:div.navbar-end
+       [:div.navbar-item
+        [pomodoro-status]]]]]))
 
 (defn lanes []
   (let [backlog-todo @(subscribe [:lanes])

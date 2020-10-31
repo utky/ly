@@ -10,13 +10,18 @@
      {[:get] [:ly.handler.lanes/list]}
      "/tasks"
      {[:get #{?lane-id}] [:ly.handler.tasks/list ?lane-id]
-      [:post {task :body-params}] [:ly.handler.tasks/new task]}}
+      [:post {task :body-params}] [:ly.handler.tasks/new task]}
+     "/pomodoros"
+     {[:get #{?to ?from ?task-id}] [:ly.handler.pomodoros/list ?to ?from ?task-id]
+      [:post {pomodoro :body-params}] [:ly.handler.pomodoros/new pomodoro]}}
     }}
 
   :ly.handler.index/get {}
   :ly.handler.lanes/list {:db #ig/ref :duct.database/sql}
   :ly.handler.tasks/list {:db #ig/ref :duct.database/sql}
   :ly.handler.tasks/new {:db #ig/ref :duct.database/sql}
+  :ly.handler.pomodoros/list {:db #ig/ref :duct.database/sql}
+  :ly.handler.pomodoros/new {:db #ig/ref :duct.database/sql}
 
   :duct.middleware.web/defaults
   {:static {:resources ["ly/public"]}}

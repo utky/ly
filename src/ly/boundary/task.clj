@@ -6,7 +6,7 @@
             [ly.core.base :as base]
             [ly.core.task :as t]))
 
-(defprotocol Task 
+(defprotocol Task
   (list-tasks [db lane-id])
   (new-task [db task]))
 

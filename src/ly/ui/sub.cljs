@@ -1,5 +1,7 @@
 (ns ly.ui.sub
   (:require [re-frame.core :refer [reg-sub]]
+            [ly.core.task :as t]
+            [ly.core.lane :as l]
             [ly.ui.db :as db]))
 
 (reg-sub
@@ -9,11 +11,11 @@
 (reg-sub
  :backlog
  (fn [db _]
-   (::db/backlog db)))
+   (first (filter #(= (::l/name %) "backlog") (::db/lanes db)))))
 (reg-sub
  :todo
  (fn [db _]
-   (::db/todo db)))
+   (first (filter #(= (::l/name %) "todo") (::db/lanes db)))))
 (reg-sub
  :done
  (fn [db _]
@@ -30,3 +32,7 @@
  :lanes
  (fn [db _]
    (::db/lanes db)))
+(reg-sub
+ :current
+ (fn [db _]
+   (::db/current db)))

@@ -1,7 +1,8 @@
 (ns ly.ui.event
-  (:require [re-frame.core :refer [reg-event-db reg-event-fx reg-fx dispatch]]
+  (:require [re-frame.core :refer [reg-event-db reg-event-fx reg-fx dispatch reg-cofx inject-cofx]]
             [ly.core.task :as t]
             [ly.core.lane :as l]
+            [ly.core.pomodoro :as p]
             [ly.ui.db :as db]
             [ajax.core :as ajax]
             [day8.re-frame.http-fx]))
@@ -16,6 +17,11 @@
  :select-task
  (fn [db [_ task-id]]
    (assoc db ::db/selected task-id)))
+
+(reg-cofx
+ :now
+ (fn [cofx _]
+    (assoc cofx :now (js.Date.))))
 
 ;; ------------------------------------
 ;; New task
@@ -100,11 +106,6 @@
      :format          (ajax/json-request-format)
      :on-success      [:submit-new-task-ok (::t/lane-id value)]
      :on-failure      [:submit-new-task-fail]} }))
-    ;;(merge http-post-config
-    ;;       {:uri "/api/tasks"
-    ;;        :params value
-    ;;        :on-success [:submit-new-task-ok]
-    ;;        :on-failure [:submit-new-task-fail]})}))
 
 (reg-event-fx
  :submit-new-task-ok
@@ -140,8 +141,8 @@
 
 (reg-event-fx
  :timer-change
- (fn [{:keys [db]} [_ next]]
-   (println "db" db)
+ [(inject-cofx :now)]
+ (fn [{:keys [db now]} [_ next]]
    (let [current    (get-in db [::db/timer ::db/timer-state])
          timer-id   (get-in db [::db/timer ::db/timer-id])
          timer-type (get-in db [::db/timer ::db/timer-type])
@@ -154,12 +155,25 @@
                     [:stopped :stopped] nil
                     [:paused  :running] {:command :set}
                     [:paused  :stopped] nil
-                    [:paused  :paused]  nil)]
+                    [:paused  :paused]  nil)
+         current-task-id (::db/current db)
+         started-at      (get-in db [::db/timer ::db/timer-started])]
      ;; FIXME debug
+     (println "current db on start timer-change" db)
      (println [current next] "timer-fx" timer-fx)
      (cond-> {:db (assoc-in db [::db/timer ::db/timer-state] next)}
-       (= [current next] [:stopped :running]) (assoc-in [:db ::db/timer ::db/timer-remaining] (db/get-timer-seconds timer-type))
-       (= :stopped next)  (assoc-in [:db ::db/timer ::db/timer-remaining] 0)
+       (= [current next] [:stopped :running]) (-> (update-in [:db ::db/timer]
+                                                             #(assoc %
+                                                                    ::db/timer-remaining (db/get-timer-seconds timer-type)
+                                                                    ::db/timer-started now))
+                                                  (assoc-in  [:db ::db/current]
+                                                             (get-in db [::db/selected])))
+       (= :stopped next)  (cond-> true (update-in [:db ::db/timer]
+                                                  #(-> %
+                                                       (assoc ::db/timer-remaining 0
+                                                              ::db/timer-type (db/next-timer-type timer-type))
+                                                       (dissoc ::db/timer-started)))
+                                  (= timer-type :pomodoro) (assoc-in [:fx] [[:dispatch [:record-pomodoro {::p/task-id current-task-id ::p/started-at started-at ::p/finished-at now}]]]))
        ;; forget last-updated
        (#{:paused :stopped} next)  (update-in [:db ::db/timer] #(dissoc % ::db/timer-last-updated))
        (not (nil? timer-fx)) (assoc :timer timer-fx)))))
@@ -183,3 +197,31 @@
                      (assoc-in [::db/timer ::db/timer-remaining] remaining)
                      (assoc-in [::db/timer ::db/timer-last-updated] now))}
             next-effect))))
+
+;; ------------------------------------
+;; New pomodoro
+;; ------------------------------------
+(reg-event-fx
+ :record-pomodoro
+ (fn [_ [_ pomodoro]]
+   (println "record" pomodoro)
+   {:http-xhrio
+    {:method          :post
+     :uri             "/api/pomodoros"
+     :params          pomodoro
+     :timeout 8000
+     :response-format  (ajax/json-response-format {:keywords? true})
+     :format          (ajax/json-request-format)
+     :on-success      [:submit-new-pomodoro-ok]
+     :on-failure      [:submit-new-pomodoro-fail]} }))
+
+(reg-event-fx
+ :submit-new-pomodoro-ok
+ (fn [_ _]
+   (println "submit-new-task-ok")
+   ;; FIXME MAGIC
+   {:fx [[:dispatch [:fetch-task-list 2]]]}))
+(reg-event-db
+ :submit-new-pomodoro-fail
+ (fn [db _]
+   db))

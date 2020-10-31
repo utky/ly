@@ -5,14 +5,22 @@
             [ly.core.lane :as l]))
 
 (defn get-timer-seconds [timer-type]
-  (* 60 (cond (= timer-type :pomodoro)    1;; 25
-              (= timer-type :short-break) 5
-              (= timer-type :long-break)  15
-              :else                       1)))
+  (* 60 (case timer-type
+          :pomodoro    1 ;;25
+          :short-break 1 ;;5
+          :long-break  15
+          1)))
+(defn next-timer-type [timer-type]
+  (case timer-type
+    :pomodoro    :short-break
+    :short-break :pomodoro
+    :long-break  :pomodoro
+    :pomodoro))
 (s/def ::timer-state #{:stopped :running :paused})
 (s/def ::timer-type #{:pomodoro :short-break :long-break})
 (s/def ::timer-remaining number?) ;; seconds
 (s/def ::timer-last-updated inst?)
+(s/def ::timer-started inst?)
 (s/def ::timer-id number?)
 (s/def ::timer
        (s/keys
@@ -22,6 +30,7 @@
          ::timer-remaining]
         :opt
         [::timer-last-updated
+         ::timer-started
          ::timer-id]))
 (defn init-timer []
   {::timer-type  :pomodoro
@@ -49,32 +58,14 @@
 
 (s/def ::tasks (s/* ::t/task))
 
-(s/def ::backlog
-  (s/keys
-   :req
-   [::tasks]))
-
-(s/def ::todo
-  (s/keys
-   :req
-   [::tasks]))
-
-(s/def ::done
-  (s/keys
-   :req
-   [::tasks]))
-
-(s/def ::lane
-  (s/keys
-   :req
-   [::l/id
-    ::l/name]
-   :opt
-   [::tasks]))
-
-(s/def ::lanes (s/* ::lane))
+(s/def ::backlog (s/keys :req [::tasks]))
+(s/def ::todo    (s/keys :req [::tasks]))
+(s/def ::done    (s/keys :req [::tasks]))
+(s/def ::lane    (s/keys :req [::l/id ::l/name] :opt [::tasks]))
+(s/def ::lanes   (s/* ::lane))
 
 (s/def ::selected ::t/id)
+(s/def ::current ::t/id)
 (s/def ::db
   (s/keys
    :req
@@ -84,6 +75,7 @@
     ::done]
    :opt
    [::selected
+    ::current
     ]))
 
 (def init

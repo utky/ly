@@ -82,6 +82,9 @@ lein test
 Icons from Octicons
 https://primer.style/octicons/
 
+Sound effect from
+https://dova-s.jp/se/play604.html
+
 ## Legal
 
 Copyright © 2020 FIXME

@@ -1,6 +1,6 @@
 (ns ly.handler.tasks
-  (:require 
-   [ataraxy.response :as response] 
+  (:require
+   [ataraxy.response :as response]
    [integrant.core :as ig]
    [ly.boundary.task :as boundary]
    [clojure.set :as set]

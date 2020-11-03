@@ -41,4 +41,4 @@
   ;; (js/document.addEventListener "keyup" (fn [e] (js/console.log "handle keyup" e) (rf/dispatch [:keyup e])))
   (rf/dispatch-sync [:init])
   (rdom/render [app]              ;; mount the application's ui into '<div id="app" />'
-    (js/document.getElementById "app")))
+               (js/document.getElementById "app")))

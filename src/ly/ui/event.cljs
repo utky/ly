@@ -21,7 +21,7 @@
 (reg-cofx
  :now
  (fn [cofx _]
-    (assoc cofx :now (js.Date.))))
+   (assoc cofx :now (js.Date.))))
 
 ;; ------------------------------------
 ;; New task
@@ -75,7 +75,7 @@
    {:http-xhrio
     {:method :get
      :uri "/api/tasks"
-     :params {:lane-id lane-id} 
+     :params {:lane-id lane-id}
      :timeout 8000
      :response-format (ajax/json-response-format {:keywords? true})
      :on-success [:fetch-task-list-ok lane-id]
@@ -105,7 +105,7 @@
      :response-format  (ajax/json-response-format {:keywords? true})
      :format          (ajax/json-request-format)
      :on-success      [:submit-new-task-ok (::t/lane-id value)]
-     :on-failure      [:submit-new-task-fail]} }))
+     :on-failure      [:submit-new-task-fail]}}))
 
 (reg-event-fx
  :submit-new-task-ok
@@ -129,6 +129,16 @@
   []
   (let [now (js/Date.)]
     (dispatch [:timer-tick now])))
+
+(reg-fx
+ :notify
+ (fn [message]
+   (let [notification (js/Notification. message)]
+     (if notification
+       (let [audio (js/document.getElementById "alarm")]
+         (.play audio)
+         (println "notification created: " notification))
+       (println "notification is nil")))))
 
 (reg-fx
  :timer
@@ -164,8 +174,8 @@
      (cond-> {:db (assoc-in db [::db/timer ::db/timer-state] next)}
        (= [current next] [:stopped :running]) (-> (update-in [:db ::db/timer]
                                                              #(assoc %
-                                                                    ::db/timer-remaining (db/get-timer-seconds timer-type)
-                                                                    ::db/timer-started now))
+                                                                     ::db/timer-remaining (db/get-timer-seconds timer-type)
+                                                                     ::db/timer-started now))
                                                   (assoc-in  [:db ::db/current]
                                                              (get-in db [::db/selected])))
        (= :stopped next)  (cond-> true (update-in [:db ::db/timer]
@@ -173,6 +183,7 @@
                                                        (assoc ::db/timer-remaining 0
                                                               ::db/timer-type (db/next-timer-type timer-type))
                                                        (dissoc ::db/timer-started)))
+                                  true (assoc :notify "timer has completed")
                                   (= timer-type :pomodoro) (assoc-in [:fx] [[:dispatch [:record-pomodoro {::p/task-id current-task-id ::p/started-at started-at ::p/finished-at now}]]]))
        ;; forget last-updated
        (#{:paused :stopped} next)  (update-in [:db ::db/timer] #(dissoc % ::db/timer-last-updated))
@@ -188,7 +199,7 @@
  (fn [{:keys [db]} [_ now]]
    (let [timer (::db/timer db)
          last-updated (::db/timer-last-updated timer)
-         elapsed (if last-updated (/ (- (.getTime now) (.getTime last-updated)) 1000) 1) 
+         elapsed (if last-updated (/ (- (.getTime now) (.getTime last-updated)) 1000) 1)
          remaining (- (::db/timer-remaining timer) elapsed)
          next-effect (if (<= remaining 0) {:fx [[:dispatch [:timer-change :stopped]]]} {})]
      ;; FIXME debug
@@ -213,7 +224,7 @@
      :response-format  (ajax/json-response-format {:keywords? true})
      :format          (ajax/json-request-format)
      :on-success      [:submit-new-pomodoro-ok]
-     :on-failure      [:submit-new-pomodoro-fail]} }))
+     :on-failure      [:submit-new-pomodoro-fail]}}))
 
 (reg-event-fx
  :submit-new-pomodoro-ok

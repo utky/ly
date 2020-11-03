@@ -44,7 +44,6 @@
              db
              (sql/format
               {:select [:id] :from [:tasks] :where [:= :uuid uuid]}))]
-        (println "created-task" created-task)
         (core/execute!
          db
          (-> (insert-into :estimates)

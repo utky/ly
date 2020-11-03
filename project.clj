@@ -17,8 +17,10 @@
                  [reagent "1.0.0-alpha2"]
                  [re-frame "1.1.1"]
                  [day8.re-frame/http-fx "0.2.1"]
-                 [cljs-ajax "0.8.1"]]
-  :plugins [[duct/lein-duct "0.12.1"]]
+                 [cljs-ajax "0.8.1"]
+                 [re-pressed "0.3.1"]]
+  :plugins [[duct/lein-duct "0.12.1"]
+            [lein-cljfmt "0.7.0"]]
   :main ^:skip-aot ly.main
   :resource-paths ["resources" "target/resources"]
   :prep-tasks     ["javac" "compile" ["run" ":duct/compiler"]]

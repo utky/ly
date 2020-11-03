@@ -23,15 +23,15 @@
 (s/def ::timer-started inst?)
 (s/def ::timer-id number?)
 (s/def ::timer
-       (s/keys
-        :req
-        [::timer-type
-         ::timer-state
-         ::timer-remaining]
-        :opt
-        [::timer-last-updated
-         ::timer-started
-         ::timer-id]))
+  (s/keys
+   :req
+   [::timer-type
+    ::timer-state
+    ::timer-remaining]
+   :opt
+   [::timer-last-updated
+    ::timer-started
+    ::timer-id]))
 (defn init-timer []
   {::timer-type  :pomodoro
    ::timer-state :stopped
@@ -75,20 +75,19 @@
     ::done]
    :opt
    [::selected
-    ::current
-    ]))
+    ::current]))
 
 (def init
   (s/conform ::db
-    {::timer
-     (init-timer)
-     
-     ::new-task
-     (init-task)
+             {::timer
+              (init-timer)
 
-     ::lanes
-     []
+              ::new-task
+              (init-task)
 
-     ::done
-     {::tasks
-      []}}))
+              ::lanes
+              []
+
+              ::done
+              {::tasks
+               []}}))

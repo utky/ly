@@ -53,7 +53,7 @@
 
 (defn task [t selected]
   [:div.level
-   {:style (assoc (if selected {:background-color "#FFFFE0"} {}) :padding "5px")} 
+   {:style (assoc (if selected {:background-color "#FFFFE0"} {}) :padding "5px")}
    [:div.level-left
     [:div.level-item
      [:span (::t/summary t)]]]
@@ -74,11 +74,11 @@
      [:div
       [:h1.title (::l/name state)]
       [:ul
-        (for [t (::db/tasks state)]
-          [:li
-           {:on-click #(dispatch [:select-task (::t/id t)])
-            :key (::t/id t)}
-           [task t (= selected-id (::t/id t))]])]]]))
+       (for [t (::db/tasks state)]
+         [:li
+          {:on-click #(dispatch [:select-task (::t/id t)])
+           :key (::t/id t)}
+          [task t (= selected-id (::t/id t))]])]]]))
 
 (defn pomodoro-status []
   (let [timer @(subscribe [:timer])
@@ -96,7 +96,7 @@
     [:div
      [:button.button
       {:type "button"
-      :on-click #(dispatch [:timer-change next-state])} next-state]
+       :on-click #(dispatch [:timer-change next-state])} next-state]
      [:span (str remaining-min ":" remaining-sec)]
      [(keyword (string/join "." ["progress" "progress" color])) {:value remaining :max timer-max}]]))
 
@@ -120,6 +120,12 @@
     (conj (map (fn [l] [lane l]) backlog-todo)
           [lane {::l/id 0 ::l/name "done" ::db/tasks (::db/tasks done)}])))
 
+;; FIXME
+(defn messages []
+  (let [messages @(subscribe [:messages])]
+    (for [message messages]
+      [:div message])))
+
 (defn main []
   [:div.container
    [status-bar]
@@ -135,5 +141,5 @@
    [:div.columns
     (concat
      (for [l @(subscribe [:lanes])]
-      [lane l])
+       [lane l])
      [[lane {::l/id 0 ::l/name "done" ::db/tasks (::db/tasks @(subscribe [:done]))}]])]])

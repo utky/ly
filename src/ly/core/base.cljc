@@ -7,6 +7,6 @@
                (let [new-kw (if (and (keyword? k)
                                      (not (qualified-keyword? k)))
                               (keyword (str n) (name k))
-                              k) ]
+                              k)]
                  (assoc acc new-kw v)))
              {} m))

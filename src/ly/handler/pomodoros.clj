@@ -1,6 +1,6 @@
 (ns ly.handler.pomodoros
-  (:require 
-   [ataraxy.response :as response] 
+  (:require
+   [ataraxy.response :as response]
    [integrant.core :as ig]
    [ly.boundary.pomodoro :as boundary]
    [clojure.set :as set]

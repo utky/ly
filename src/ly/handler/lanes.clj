@@ -1,6 +1,6 @@
 (ns ly.handler.lanes
-  (:require 
-   [ataraxy.response :as response] 
+  (:require
+   [ataraxy.response :as response]
    [integrant.core :as ig]
    [ly.boundary.lane :as boundary]))
 

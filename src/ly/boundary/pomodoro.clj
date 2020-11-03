@@ -18,24 +18,24 @@
      (core/query
       db
       (sql/format
-        (cond->
-         {:select
-           [:id :task-id :started-at :finished-at]
-           :from
-           [:pomodoros]
-           :order-by [:started-at]}
+       (cond->
+        {:select
+         [:id :task-id :started-at :finished-at]
+         :from
+         [:pomodoros]
+         :order-by [:started-at]}
          (not (nil? from))    (merge-where [:>= :started-at from])
          (not (nil? to))      (merge-where [:<  :finished-at to])
          (not (nil? task-id)) (merge-where [:=  :task-id task-id]))))))
   (new-pomodoro [db pomodoro]
-   (core/execute!
-    db
-    (-> (insert-into :pomodoros)
-        (columns
-         :task-id
-         :started-at
-         :finished-at)
-        (values
-         [(vec (map #(% pomodoro) [::p/task-id ::p/started-at ::p/finished-at]))])
-        sql/format))))
+    (core/execute!
+     db
+     (-> (insert-into :pomodoros)
+         (columns
+          :task-id
+          :started-at
+          :finished-at)
+         (values
+          [(vec (map #(% pomodoro) [::p/task-id ::p/started-at ::p/finished-at]))])
+         sql/format))))
 

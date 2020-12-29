@@ -2,27 +2,23 @@ extern crate clap;
 use clap::{Arg, App, SubCommand};
 use rusqlite::{params, Connection, Result};
 use warp::Filter;
-use tokio::sync::oneshot;
+
+mod ddl;
+mod public;
 
 async fn server() {
-  let routes = warp::any().map(|| "Hello, World!");
+  let routes = warp::any().map(|| public::index_html());
   warp::serve(routes).run(([127, 0, 0, 1], 8080)).await;
 }
 
 async fn init() -> Result<()> {
   let path = "./ly.db";
   let conn = Connection::open(&path)?;
-  println!("{}", conn.is_autocommit());
-  conn.execute(
-   "CREATE TABLE lanes (
-       id tinyint,
-       name varchar NOT NULL UNIQUE,
-       created_at timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
-       updated_at timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
-       PRIMARY KEY (id)
-     )",
-      params![],
-  )?;
+
+  for s in ddl::STATEMENTS.iter() {
+    conn.execute(s, params![])?;
+  }
+
   Ok(())
 }
 

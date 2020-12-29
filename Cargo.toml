@@ -1,0 +1,13 @@
+[package]
+name = "ly"
+version = "0.1.0"
+authors = ["utky <ilyaletre@gmail.com>"]
+edition = "2018"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+clap = "2.33.3"
+rusqlite = "0.24.2"
+tokio = { version = "0.2", features = ["full"] }
+warp = "0.2.5"

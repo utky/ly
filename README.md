@@ -1,89 +1,42 @@
 # ly
 
-FIXME: description
+Reinventing the wheel: Pomodoro recorder CLI
 
-## Developing
+## DESIGN NOTES
 
-### Setup
+ly has two mode: server and client.
 
-When you first clone this repository, run:
+server mode exposes HTTP and gRPC TCP port to communicate with clients.
+HTTP port (8080) accepts access from browser to view timer and visualised metrics.
+gRPC port (8081) accepts command from CLI client.
 
-```sh
-lein duct setup
+## Setup
+
+Initialize database.
+
+```
+$ ly init
 ```
 
-This will create files for local configuration, and prep your system
-for the project.
+## Task
 
-### Environment
+List backlog
 
-To begin developing, start with a REPL.
-
-```sh
-lein repl
+```
+$ ly b
 ```
 
-Then load the development environment.
-
-```clojure
-user=> (dev)
-:loaded
+```
+$ ly b -a
 ```
 
-Run `go` to prep and initiate the system.
+List todo
 
-```clojure
-dev=> (go)
-:duct.server.http.jetty/starting-server {:port 3000}
-:initiated
+## Pomodoro
+
 ```
-
-By default this creates a web server at <http://localhost:3000>.
-
-When you make changes to your source files, use `reset` to reload any
-modified files and reset the server. Changes to CSS or ClojureScript
-files will be hot-loaded into the browser.
-
-```clojure
-dev=> (reset)
-:reloading (...)
-:resumed
+$ ly start
 ```
-
-If you want to access a ClojureScript REPL, make sure that the site is loaded
-in a browser and run:
-
-```clojure
-dev=> (cljs-repl)
-Waiting for browser connection... Connected.
-To quit, type: :cljs/quit
-nil
-cljs.user=>
-```
-
-### Testing
-
-Testing is fastest through the REPL, as you avoid environment startup
-time.
-
-```clojure
-dev=> (test)
-...
-```
-
-But you can also run tests through Leiningen.
-
-```sh
-lein test
-```
-
-## 
-
-Icons from Octicons
-https://primer.style/octicons/
-
-Sound effect from
-https://dova-s.jp/se/play604.html
 
 ## Legal
 

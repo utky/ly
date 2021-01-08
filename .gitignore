@@ -15,6 +15,7 @@ pom.xml.asc
 /dev/src/local.clj
 .calva
 .lsp
+elm-stuff
 
 #Added by cargo
 #

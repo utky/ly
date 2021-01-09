@@ -2,6 +2,7 @@ extern crate clap;
 use clap::{Arg, App, SubCommand};
 use rusqlite::{params, Connection, Result, NO_PARAMS};
 use warp::Filter;
+use warp::reply::html;
 
 mod ddl;
 mod public;
@@ -46,8 +47,8 @@ async fn rm_task() -> Result<()> {
 }
 
 async fn start_server() {
-  let routes = warp::any().map(|| public::index_html());
-  warp::serve(routes).run(([127, 0, 0, 1], 8080)).await;
+  let routes = warp::any().map(|| html(public::index_html()));
+  warp::serve(routes).run(([0, 0, 0, 0], 8081)).await;
 }
 
 async fn initialize() -> Result<()> {

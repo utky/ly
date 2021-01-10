@@ -11,7 +11,7 @@ pub enum RepositoryError {
 impl Display for RepositoryError {
     fn fmt(&self, f: &mut Formatter) -> Result {
       match self {
-        NotFound => write!(f, "Entity not found"),
+        RepositoryError::NotFound => write!(f, "Entity not found"),
       }
     }
 }

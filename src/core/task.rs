@@ -1,5 +1,4 @@
 use anyhow::Result;
-use uuid::Uuid;
 use chrono::{DateTime, Utc};
 use super::common::{Id, RepositoryError};
 use super::lane;
@@ -8,7 +7,6 @@ use super::lane;
 #[derive(Debug)]
 pub struct Task {
   pub id: Id,
-  pub uuid: Uuid,
   pub lane_id: Id,
   pub summary: String,
   pub created_at: DateTime<Utc>,
@@ -16,28 +14,27 @@ pub struct Task {
 }
 
 pub trait Add {
-  fn add_task(&mut self, uuid: &Uuid, lane_id: Id, summary: &str) -> Result<()>;
+  fn add_task(&mut self, lane_id: Id, summary: &str) -> Result<()>;
 }
 
 pub trait Fetch {
-  fn fetch_task_by_uuid(&mut self, uuid: &Uuid) -> Result<Option<Task>>;
   fn fetch_task_by_id(&mut self, id: Id) -> Result<Option<Task>>;
-  fn fetch_all_tasks(&mut self) -> Result<Vec<Task>>;
+  fn fetch_all_tasks(&mut self, lane_name: &str) -> Result<Vec<Task>>;
 }
 
-pub fn add_task<R>(r: &mut R, uuid: &Uuid, lane_name: &str, summary: &str) -> Result<()>
+pub fn add_task<R>(r: &mut R, lane_name: &str, summary: &str) -> Result<()>
   where R: Add + lane::Fetch  {
   if let Some(lane) = r.fetch_lane_by_name(lane_name)? {
-    r.add_task(uuid, lane.id, summary)
+    r.add_task(lane.id, summary)
   }
   else {
     Err(RepositoryError::NotFound.into())
   }
 }
 
-pub fn list_all_tasks<R>(r: &mut R) -> Result<Vec<Task>>
+pub fn list_all_tasks<R>(r: &mut R, lane_name: &str) -> Result<Vec<Task>>
   where R: Fetch {
-  r.fetch_all_tasks()
+  r.fetch_all_tasks(lane_name)
 }
 
 

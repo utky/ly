@@ -16,6 +16,7 @@ pom.xml.asc
 .calva
 .lsp
 elm-stuff
+*.db
 
 #Added by cargo
 #

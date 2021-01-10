@@ -1,62 +1,54 @@
 const LANES: &'static str = "CREATE TABLE IF NOT EXISTS lanes (
-  id tinyint,
-  name varchar NOT NULL UNIQUE,
-  created_at timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  updated_at timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  PRIMARY KEY (id)
+  id INTEGER PRIMARY KEY,
+  name VARCHAR NOT NULL UNIQUE,
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
  )";
 
 const LANES_INSERT: &'static str = "INSERT INTO lanes(id, name) VALUES (1, 'backlog'), (2, 'todo')";
 
 const TASKS: &'static str = "CREATE TABLE IF NOT EXISTS tasks (
-  id integer AUTO_INCREMENT,
-  uuid varchar(36) NOT NULL UNIQUE,
-  lane_id tinyint,
-  summary varchar NOT NULL,
-  created_at timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  updated_at timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  PRIMARY KEY (id),
+  id INTEGER PRIMARY KEY,
+  lane_id TINYINT,
+  summary VARCHAR NOT NULL,
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   FOREIGN KEY (lane_id) REFERENCES lanes (id)
 )";
 
 const ARCHIVES: &'static str = "CREATE TABLE IF NOT EXISTS archives (
-  id integer,
-  uuid varchar(36) NOT NULL UNIQUE,
-  lane_id integer,
-  summary varchar NOT NULL,
-  created_at timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  updated_at timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  PRIMARY KEY (id),
+  id INTEGER PRIMARY KEY,
+  lane_id INTEGER,
+  summary VARCHAR NOT NULL,
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   FOREIGN KEY (lane_id) REFERENCES lanes (id)
 )";
 
 const ESTIMATES: &'static str = "CREATE TABLE IF NOT EXISTS estimates (
-  id integer AUTO_INCREMENT,
-  task_id integer,
-  value integer NOT NULL,
-  created_at timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  updated_at timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  PRIMARY KEY (id),
+  id INTEGER PRIMARY KEY,
+  task_id INTEGER,
+  value INTEGER NOT NULL,
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   FOREIGN KEY (task_id) REFERENCES tasks (id)
  )";
 
 const POMODOROS: &'static str = "CREATE TABLE IF NOT EXISTS pomodoros (
-  id integer AUTO_INCREMENT,
-  task_id integer,
-  started_at timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  finished_at timestamp,
-  PRIMARY KEY (id),
+  id INTEGER PRIMARY KEY,
+  task_id INTEGER,
+  started_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  finished_at TIMESTAMP,
   FOREIGN KEY (task_id) REFERENCES tasks (id)
 )";
 
 const INTERRUPTIONS: &'static str = "CREATE TABLE IF NOT EXISTS interruptions (
-  id integer AUTO_INCREMENT,
-  task_id integer,
-  external boolean,
-  created_at timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  PRIMARY KEY (id),
+  id INTEGER PRIMARY KEY,
+  task_id INTEGER,
+  external BOOLEAN,
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   FOREIGN KEY (task_id) REFERENCES tasks (id)
-);";
+)";
 
 pub const STATEMENTS: [&str; 7] = [
     LANES,

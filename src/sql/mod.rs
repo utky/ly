@@ -1,5 +1,5 @@
 use anyhow::Result;
-use rusqlite::{params, Connection, NO_PARAMS};
+use rusqlite::{params, Connection, NO_PARAMS, Row, Result as SqlResult};
 use crate::core::{Id};
 use crate::core::lane;
 use crate::core::task;
@@ -55,28 +55,22 @@ impl task::Add for Session {
   }
 }
 
+fn row_to_task(row: &Row) -> SqlResult<task::Task> {
+  Ok(task::Task {id: row.get(0)?, lane_id: row.get(1)?, summary: row.get(2)?, created_at: row.get(3)?, updated_at: row.get(4)?})
+}
+
 impl task::Fetch for Session {
   fn fetch_task_by_id(&mut self, id: Id) -> Result<Option<task::Task>> {
     self.conn.query_row_and_then("SELECT id, lane_id, summary, created_at, updated_at FROM tasks WHERE id = ?", params![id], |row| {
-      Ok(Some(task::Task {
-        id: row.get(0)?,
-        lane_id: row.get(1)?,
-        summary: row.get(2)?,
-        created_at: row.get(3)?,
-        updated_at: row.get(4)?,
-      }))
+      let t = row_to_task(row)?;
+      Ok(Some(t))
     })
   }
   fn fetch_all_tasks(&mut self, lane_name: &str) -> Result<Vec<task::Task>> {
     let mut stmt = self.conn.prepare("SELECT id, lane_id, summary, created_at, updated_at FROM tasks WHERE EXISTS (SELECT id FROM lanes WHERE name = ? AND lanes.id = tasks.lane_id)")?;
     let rows = stmt.query_map(params![lane_name], |row| {
-      Ok(task::Task {
-        id: row.get(0)?,
-        lane_id: row.get(1)?,
-        summary: row.get(2)?,
-        created_at: row.get(3)?,
-        updated_at: row.get(4)?,
-      })
+      let t = row_to_task(row)?;
+      Ok(t)
     })?;
     let mut results = Vec::new();
     for r in rows {

@@ -1,4 +1,4 @@
-use anyhow::Result;
+use anyhow::{Result, Context};
 use rusqlite::{params, Connection, NO_PARAMS, Row, Result as SqlResult};
 use crate::core::{Id};
 use crate::core::lane;
@@ -14,25 +14,18 @@ impl Session {
   fn new(conn: Connection) -> Session {
     Session { conn: conn }
   }
-}
+  pub fn connect() -> Result<Session> {
+    let path = "./ly.db";
+    let conn = Connection::open(&path)?;
+    Ok(Session::new(conn))
+  }
 
-pub fn connect() -> Result<Session> {
-  let path = "./ly.db";
-  let conn = Connection::open(&path)?;
-  Ok(Session::new(conn))
-}
-
-pub fn connect_memory() -> Result<Session> {
-  let conn = Connection::open_in_memory()?;
-  Ok(Session::new(conn))
-}
-
-pub fn initialize() -> Result<()> {
-    let s = connect()?;
+   pub fn initialize(&mut self) -> Result<()> {
     for stmt in ddl::STATEMENTS.iter() {
-      s.conn.execute(stmt, NO_PARAMS)?;
+      self.conn.execute(stmt, NO_PARAMS).with_context(|| format!("Failed to run statement {}", stmt))?;
     }
     Ok(())
+  } 
 }
 
 impl lane::Fetch for Session {
@@ -77,5 +70,49 @@ impl task::Fetch for Session {
       results.push(r?);
     }
     Ok(results)
+  }
+}
+
+#[cfg(test)]
+mod tests {
+  use anyhow::Result;
+  use rusqlite::Connection;
+  use super::Session;
+  use super::lane::{Fetch as LaneFetch};
+  use super::task::{Add, Fetch as TaskFetch};
+  
+  fn connect_memory() -> Result<Session> {
+    let conn = Connection::open_in_memory()?;
+    Ok(Session::new(conn))
+  }
+  fn get_initialized_session() -> Session {
+    let mut session = connect_memory().expect("failed to aquire session");
+    session.initialize().expect("failed to initialize session");
+    session
+  }
+  #[test]
+  fn test_fetch_lane() {
+    let mut session = get_initialized_session();
+    let l = session.fetch_lane_by_name("backlog").expect("failed to fetch backlog lane").expect("returned value should be Some");
+    assert_eq!(l.name, "backlog");
+  }
+  #[test]
+  fn test_insert_fetch_task_by_id() {
+    let mut session = get_initialized_session();
+    let _ = session.add_task(2, "test").expect("adding task should not failed");
+    let t = session.fetch_task_by_id(1).expect("could not fetch task by id 1").expect("returned value should be Some");
+    assert_eq!(t.lane_id, 2);
+    assert_eq!(t.summary, "test");
+  }
+  #[test]
+  fn test_insert_fetch_all_tasks() {
+    let mut session = get_initialized_session();
+    let _ = session.add_task(1, "test1").expect("adding task should not failed");
+    let backlog = session.fetch_all_tasks("backlog").expect("failed to fech backlog tasks");
+    assert_eq!(backlog.len(), 1);
+    assert_eq!(backlog[0].lane_id, 1);
+    assert_eq!(backlog[0].summary, "test1");
+    let todo = session.fetch_all_tasks("todo").expect("failed to fech backlog tasks");
+    assert_eq!(todo.len(), 0);
   }
 }

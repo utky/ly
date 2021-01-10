@@ -49,7 +49,8 @@ async fn main() {
 
     match matches.subcommand() {
         ("init", _) => {
-            match sql::initialize() {
+            let mut session = sql::Session::connect().expect("connect database");
+            match session.initialize() {
               Err(error) => println!("Error: {}", error),
               Ok(_) => ()
             }
@@ -57,7 +58,7 @@ async fn main() {
         ("server", _) => http::start_server().await,
         ("task", Some(task_m)) => match task_m.subcommand() {
             ("ls", task_ls_m) => {
-              let mut session = sql::connect().expect("connect database");
+              let mut session = sql::Session::connect().expect("connect database");
               for r in core::task::list_all_tasks(
                 &mut session,
                 task_ls_m.unwrap().value_of("lane").unwrap_or("backlog"),
@@ -66,7 +67,7 @@ async fn main() {
               }
             }
             ("add", task_add_m) => {
-              let mut session = sql::connect().expect("connect database");
+              let mut session = sql::Session::connect().expect("connect database");
               core::task::add_task(
                 &mut session,
                 task_add_m.unwrap().value_of("lane").unwrap(),

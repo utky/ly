@@ -7,13 +7,24 @@ const LANES: &'static str = "CREATE TABLE IF NOT EXISTS lanes (
 
 const LANES_INSERT: &'static str = "INSERT INTO lanes(id, name) VALUES (1, 'backlog'), (2, 'todo')";
 
+const PRIORITIES: &'static str = "CREATE TABLE IF NOT EXISTS priorities (
+  id INTEGER PRIMARY KEY,
+  name VARCHAR NOT NULL UNIQUE,
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+ )";
+
+const PRIORITIES_INSERT: &'static str = "INSERT INTO priorities(id, name) VALUES (0, 'n'), (1, 'l'), (2, 'm'), (3, 'h')";
+
 const TASKS: &'static str = "CREATE TABLE IF NOT EXISTS tasks (
   id INTEGER PRIMARY KEY,
   lane_id TINYINT,
+  priority INTEGER NOT NULL,
   summary VARCHAR NOT NULL,
   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  FOREIGN KEY (lane_id) REFERENCES lanes (id)
+  FOREIGN KEY (lane_id) REFERENCES lanes (id),
+  FOREIGN KEY (priority) REFERENCES priorities (id)
 )";
 
 const ARCHIVES: &'static str = "CREATE TABLE IF NOT EXISTS archives (
@@ -50,12 +61,14 @@ const INTERRUPTIONS: &'static str = "CREATE TABLE IF NOT EXISTS interruptions (
   FOREIGN KEY (task_id) REFERENCES tasks (id)
 )";
 
-pub const STATEMENTS: [&str; 7] = [
-    LANES,
-    LANES_INSERT,
-    TASKS,
-    ARCHIVES,
-    ESTIMATES,
-    POMODOROS,
-    INTERRUPTIONS,
+pub const STATEMENTS: [&str; 9] = [
+  LANES,
+  LANES_INSERT,
+  PRIORITIES,
+  PRIORITIES_INSERT,
+  TASKS,
+  ARCHIVES,
+  ESTIMATES,
+  POMODOROS,
+  INTERRUPTIONS,
 ];

@@ -1,5 +1,5 @@
 extern crate clap;
-use clap::{App, Arg, SubCommand};
+use clap::{App, Arg, SubCommand, value_t_or_exit};
 use crate::cli::Row;
 
 mod core;
@@ -18,7 +18,8 @@ async fn main() {
         .long("lane")
         .short("l")
         .value_name("LANE_NAME")
-        .takes_value(true));
+        .takes_value(true)
+        .required(false));
     let task_add = SubCommand::with_name("add").about("add task")
       .arg(Arg::with_name("lane")
         .long("lane")
@@ -26,6 +27,12 @@ async fn main() {
         .value_name("LANE_NAME")
         .takes_value(true)
         .required(true))
+      .arg(Arg::with_name("priority")
+        .long("priority")
+        .short("p")
+        .value_name("PRIORITY_NAME")
+        .takes_value(true)
+        .required(false))
       .arg(Arg::with_name("summary")
         .long("summary")
         .short("s")
@@ -67,11 +74,13 @@ async fn main() {
               }
             }
             ("add", task_add_m) => {
+              let task_add_m = task_add_m.unwrap();
               let mut session = sql::Session::connect().expect("connect database");
               core::task::add_task(
                 &mut session,
-                task_add_m.unwrap().value_of("lane").unwrap(),
-                task_add_m.unwrap().value_of("summary").unwrap(),
+                task_add_m.value_of("lane").unwrap(),
+                task_add_m.value_of("priority").unwrap(),
+                task_add_m.value_of("summary").unwrap(),
               ).expect("add test");
             }
             // ("rm", _) => {

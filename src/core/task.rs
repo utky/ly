@@ -24,6 +24,10 @@ pub trait Fetch {
   fn fetch_all_tasks(&mut self, lane_name: &str) -> Result<Vec<Task>>;
 }
 
+pub trait Mod {
+  fn mod_task<'a>(&mut self, id: Id, lane_id: Option<&Id>, priority: Option<&Id>, summary: Option<&str>) -> Result<()>;
+}
+
 pub fn add_task<R>(r: &mut R, lane_name: &str, priority_name: &str, summary: &str) -> Result<()>
   where R: Add + lane::Fetch + priority::Fetch {
   if let Some(lane) = r.fetch_lane_by_name(lane_name)? {
@@ -40,4 +44,9 @@ pub fn list_all_tasks<R>(r: &mut R, lane_name: &str) -> Result<Vec<Task>>
   r.fetch_all_tasks(lane_name)
 }
 
-
+pub fn mod_task<R>(r: &mut R, id: Id, lane_name: Option<&str>, priority_name: Option<&str>, summary: Option<&str>) -> Result<()>
+  where R: Mod + lane::Fetch + priority::Fetch {
+  let lane = lane_name.and_then(|lane_name| r.fetch_lane_by_name(lane_name).ok().unwrap()).map(|l| l.id);
+  let prio = priority_name.and_then(|priority_name| r.fetch_priority_by_name(priority_name).ok()).map(|p| p.id);
+  r.mod_task(id, lane.as_ref(), prio.as_ref(), summary)
+}

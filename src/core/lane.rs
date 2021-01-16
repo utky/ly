@@ -13,4 +13,9 @@ pub struct Lane {
 
 pub trait Fetch {
   fn fetch_lane_by_name(&mut self, name: &str) -> Result<Option<Lane>>;
+  fn fetch_all_lanes(&mut self) -> Result<Vec<Lane>>;
+}
+
+pub fn fetch_all_lanes<R>(r: &mut R) -> Result<Vec<Lane>> where R: Fetch {
+  r.fetch_all_lanes()
 }

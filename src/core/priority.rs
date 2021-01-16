@@ -13,4 +13,9 @@ pub struct Priority {
 
 pub trait Fetch {
   fn fetch_priority_by_name(&mut self, name: &str) -> Result<Priority>;
+  fn fetch_all_priority(&mut self) -> Result<Vec<Priority>>;
+}
+
+pub fn fetch_all_priority<R>(r: &mut R) -> Result<Vec<Priority>> where R: Fetch {
+  r.fetch_all_priority()
 }

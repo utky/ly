@@ -6,7 +6,7 @@ fn main() {
         .args(&[
             "make",
             "--output",
-            &format!("{}/index.html", out_dir),
+            &format!("{}/index.js", out_dir),
             "src/Main.elm",
         ])
         .status()

@@ -1,9 +1,12 @@
 use anyhow::{Result, Context};
 use rusqlite::{params, Connection, NO_PARAMS, Row, Result as SqlResult};
+use chrono::{DateTime, Utc};
 use crate::core::{Id};
 use crate::core::lane;
 use crate::core::task;
 use crate::core::priority;
+use crate::core::pomodoro;
+use crate::core::current;
 
 pub mod ddl;
 
@@ -129,6 +132,56 @@ impl task::Mod for Session {
     let set_summary = summary.unwrap_or(&old.summary);
     self.conn.execute(MOD_TASK, params![set_lane_id, set_priority, set_summary, id])?;
     Ok(())
+  }
+}
+
+
+fn row_to_current(row: &Row) -> SqlResult<current::Current> {
+  Ok(current::Current {id: row.get(0)?, task_id: row.get(1)?, started_at: row.get(2)?})
+}
+static START: &str = "INSERT INTO current(id, task_id) VALUES (0, ?)";
+static COMPLETE: &str = "DELETE FROM current WHERE id = 0";
+static GET_CURRENT: &str = "SELECT id, task_id, started_at FROM current WHERE id = 0";
+impl current::Lifecycle for Session  {
+  fn start(&mut self, task_id: Id) -> Result<current::Current> {
+    self.conn.execute(START, params![task_id])?;
+    let c = self.conn.query_row(GET_CURRENT, NO_PARAMS, row_to_current)?;
+    Ok(c) 
+  }
+  fn complete(&mut self) -> Result<()> {
+    self.conn.execute(COMPLETE, NO_PARAMS)?;
+    Ok(())
+  }
+}
+
+impl current::Get for Session {
+  fn get(&mut self) -> Result<Option<current::Current>> {
+    let c = self.conn.query_row(GET_CURRENT, NO_PARAMS, row_to_current)?;
+    Ok(Some(c))
+  }
+}
+
+fn row_to_pomodoro(row: &Row) -> SqlResult<pomodoro::Pomodoro> {
+  Ok(pomodoro::Pomodoro {id: row.get(0)?, task_id: row.get(1)?, started_at: row.get(2)?, finished_at: row.get(3)?})
+}
+static ADD_POMODORO: &str = "INSERT INTO pomodoros(task_id, started_at) VALUES (?, ?)";
+impl pomodoro::Complete for Session {
+  fn complete_pomodoro(&mut self, task_id: Id, started_at: DateTime<Utc>) -> Result<()> {
+    self.conn.execute(ADD_POMODORO, params![task_id, started_at])?;
+    Ok(()) 
+  }
+}
+
+static FETCH_POMODOROS_BY_TASK_ID: &str = "SELECT id, task_id, started_at, finished_at FROM pomodoros WHERE task_id = ? ORDER BY started_at";
+impl pomodoro::Fetch for Session {
+  fn fetch_by_task_id(&mut self, task_id: Id) -> Result<Vec<pomodoro::Pomodoro>> {
+    let mut stmt = self.conn.prepare(FETCH_POMODOROS_BY_TASK_ID)?;
+    let rows = stmt.query_map(params![task_id], |row| row_to_pomodoro(row))?;
+    let mut results = Vec::new();
+    for r in rows {
+      results.push(r?);
+    }
+    Ok(results)
   }
 }
 

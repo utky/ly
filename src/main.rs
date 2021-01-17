@@ -2,6 +2,8 @@ extern crate clap;
 use clap::{App, Arg, SubCommand};
 use crate::cli::TaskList;
 use anyhow::{Result, bail};
+use crate::core::Id;
+use crate::core::current;
 
 mod core;
 mod cli;
@@ -9,10 +11,39 @@ mod http;
 mod sql;
 mod public;
 
+struct CleanupCurrent {
+  session: sql::Session,
+  current: current::Current
+}
+
+impl Drop for CleanupCurrent {
+  fn drop(&mut self) {
+    let _ = crate::core::current::complete(&mut self.session, &self.current);
+  }
+}
+
+fn start_pomodoro(task_id: Id) -> Result<()> {
+  let current: Result<current::Current> = {
+    let mut session = sql::Session::connect()?;
+    crate::core::current::start(&mut session, task_id)
+  };
+  let session = sql::Session::connect()?;
+  let mut cleanup = CleanupCurrent {session: session, current: current?};
+  std::thread::sleep(std::time::Duration::from_secs(10));
+  Ok(())
+}
+
 #[tokio::main]
 async fn main() -> Result<()> {
   let init = SubCommand::with_name("init").about("initialize database");
   let server = SubCommand::with_name("server").about("start server");
+  let start = SubCommand::with_name("start").about("start pomodoro for the task")
+    .arg(Arg::with_name("id")
+      .long("id")
+      .short("i")
+      .value_name("ID")
+      .takes_value(true)
+      .required(true));
   let task_list = SubCommand::with_name("ls").about("list tasks")
     .arg(Arg::with_name("lane")
       .long("lane")
@@ -77,6 +108,7 @@ async fn main() -> Result<()> {
       .about("Pomodoro time tracker")
       .subcommand(init)
       .subcommand(server)
+      .subcommand(start)
       .subcommand(task)
       .get_matches();
 
@@ -85,8 +117,12 @@ async fn main() -> Result<()> {
       let mut session = sql::Session::connect()?;
       session.initialize()?;
       Ok(())
-    }
+    },
     ("server", _) => Ok(http::start_server().await),
+    ("start", Some(start_m)) => {
+      let task_id = start_m.value_of("id").unwrap().parse::<i64>().expect("id should be integer");
+      start_pomodoro(task_id)
+    },
     ("task", Some(task_m)) => match task_m.subcommand() {
         ("ls", task_ls_m) => {
           let mut session = sql::Session::connect()?;

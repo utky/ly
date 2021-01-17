@@ -1,3 +1,4 @@
+use serde::{Deserialize, Serialize};
 use anyhow::Result;
 use chrono::{DateTime, Utc};
 use super::common::{Id, RepositoryError};
@@ -5,7 +6,7 @@ use super::lane;
 use super::priority;
 
 /// Task to be done.
-#[derive(Debug)]
+#[derive(Serialize, Deserialize, Debug)]
 pub struct Task {
   pub id: Id,
   pub lane_id: Id,

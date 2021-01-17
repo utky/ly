@@ -7,17 +7,19 @@ module Main exposing (..)
 --
 
 
-import Browser
+import Browser exposing (Document)
+import Platform.Cmd exposing (Cmd)
+import Platform.Sub exposing (Sub)
 import Html exposing (Html, button, div, text)
 import Html.Events exposing (onClick)
-
+import Time exposing (every)
 
 
 -- MAIN
 
 
 main =
-  Browser.sandbox { init = init, update = update, view = view }
+  Browser.document { init = init, subscriptions = subscriptions, update = update, view = view }
 
 
 
@@ -27,9 +29,8 @@ main =
 type alias Model = Int
 
 
-init : Model
-init =
-  0
+init : () -> (Model, Cmd Msg)
+init _ = (0, Cmd.none)
 
 
 
@@ -41,24 +42,33 @@ type Msg
   | Decrement
 
 
-update : Msg -> Model -> Model
+update : Msg -> Model -> (Model, Cmd Msg)
 update msg model =
   case msg of
     Increment ->
-      model + 1
+      (model + 1, Cmd.none)
 
     Decrement ->
-      model - 1
+      (model - 1, Cmd.none)
 
 
 
 -- VIEW
 
 
-view : Model -> Html Msg
+view : Model -> Document Msg
 view model =
-  div []
-    [ button [ onClick Decrement ] [ text "-" ]
-    , div [] [ text (String.fromInt model) ]
-    , button [ onClick Increment ] [ text "+" ]
-    ]
+  Document 
+    "ly"
+     [
+       div []
+           [ button [ onClick Decrement ] [ text "--" ]
+           , div [] [ text (String.fromInt model) ]
+           , button [ onClick Increment ] [ text "++" ]
+           ]
+     ]
+  
+
+
+subscriptions : Model -> Sub Msg
+subscriptions _ = Sub.none

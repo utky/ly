@@ -27,6 +27,13 @@ const TASKS: &'static str = "CREATE TABLE IF NOT EXISTS tasks (
   FOREIGN KEY (priority) REFERENCES priorities (id)
 )";
 
+const CURRENT: &'static str = "CREATE TABLE IF NOT EXISTS current (
+  id INTEGER PRIMARY KEY,
+  task_id INTEGER,
+  started_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (task_id) REFERENCES tasks (id)
+)";
+
 const ARCHIVES: &'static str = "CREATE TABLE IF NOT EXISTS archives (
   id INTEGER PRIMARY KEY,
   lane_id INTEGER,
@@ -49,7 +56,7 @@ const POMODOROS: &'static str = "CREATE TABLE IF NOT EXISTS pomodoros (
   id INTEGER PRIMARY KEY,
   task_id INTEGER,
   started_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  finished_at TIMESTAMP,
+  finished_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   FOREIGN KEY (task_id) REFERENCES tasks (id)
 )";
 
@@ -61,12 +68,13 @@ const INTERRUPTIONS: &'static str = "CREATE TABLE IF NOT EXISTS interruptions (
   FOREIGN KEY (task_id) REFERENCES tasks (id)
 )";
 
-pub const STATEMENTS: [&str; 9] = [
+pub const STATEMENTS: [&str; 10] = [
   LANES,
   LANES_INSERT,
   PRIORITIES,
   PRIORITIES_INSERT,
   TASKS,
+  CURRENT,
   ARCHIVES,
   ESTIMATES,
   POMODOROS,

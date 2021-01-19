@@ -7,7 +7,7 @@ use crate::core::current;
 
 mod core;
 mod cli;
-mod http;
+mod web;
 mod sql;
 mod public;
 
@@ -118,7 +118,7 @@ async fn main() -> Result<()> {
       session.initialize()?;
       Ok(())
     },
-    ("server", _) => Ok(http::start_server().await),
+    ("server", _) => Ok(web::start_server().await),
     ("start", Some(start_m)) => {
       let task_id = start_m.value_of("id").unwrap().parse::<i64>().expect("id should be integer");
       start_pomodoro(task_id)

@@ -567,6 +567,7 @@ dependencies = [
  "anyhow",
  "chrono",
  "clap",
+ "http",
  "rusqlite",
  "serde",
  "serde_json",

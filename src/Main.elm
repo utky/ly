@@ -21,7 +21,12 @@ import Time
 
 
 main =
-  Browser.document { init = init, subscriptions = subscriptions, update = update, view = view }
+  Browser.document
+    { init = init
+    , subscriptions = subscriptions
+    , update = update
+    , view = view
+    }
 
 
 
@@ -31,6 +36,7 @@ type alias Id = Int
 
 type alias Model =
   { currentTask : Maybe CurrentTask
+  , errorMsg : Maybe String
   , loading: Bool
   }
 
@@ -51,7 +57,13 @@ type alias Task =
 
 
 init : () -> (Model, Cmd Msg)
-init _ = ({ currentTask = Nothing, loading = False }, Cmd.none)
+init _ =
+  (
+    { currentTask = Nothing
+    , errorMsg = Nothing
+    , loading = False
+    }
+  , Cmd.none)
 
 
 
@@ -71,18 +83,18 @@ decodeTask : D.Decoder Task
 decodeTask =
   D.map6 Task
     (D.field "id" D.int)
-    (D.field "laneId" D.int)
+    (D.field "lane_id" D.int)
     (D.field "priority" D.int)
     (D.field "summary" D.string)
-    (D.field "createdAt" posix)
-    (D.field "updatedAt" posix)
+    (D.field "created_at" posix)
+    (D.field "updated_at" posix)
 
 decodeCurrentTask : D.Decoder CurrentTask
 decodeCurrentTask =
   D.map3 CurrentTask
     (D.field "id" D.int)
     (D.field "task" decodeTask)
-    (D.field "startedAt" posix)
+    (D.field "started_at" posix)
 
 handleCurrentTask : Result Http.Error CurrentTask -> Msg
 handleCurrentTask result =
@@ -147,13 +159,13 @@ update msg model =
       )
 
     CurrentTaskSuccess task ->
-      ({ model | currentTask = Just task }, Cmd.none)
+      ({ model | currentTask = Just task, errorMsg = Nothing }, Cmd.none)
 
     CurrentTaskFailure message ->
-      (model, Cmd.none)
+      ({ model | currentTask = Nothing, errorMsg = Just message }, Cmd.none)
 
     CurrentTaskNotFound ->
-      (model, Cmd.none)
+      ({ model | currentTask = Nothing, errorMsg = Nothing }, Cmd.none)
 
 -- VIEW
 
@@ -165,6 +177,7 @@ view model =
      [
        div []
            [ div [] [ text (Maybe.withDefault "" (Maybe.map (\t -> t.task.summary) model.currentTask))]
+           , div [] [ text (Maybe.withDefault "" model.errorMsg)]
            ]
      ]
   

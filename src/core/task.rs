@@ -1,6 +1,7 @@
 use serde::{Deserialize, Serialize};
 use anyhow::Result;
 use chrono::{DateTime, Utc};
+use chrono::serde::ts_milliseconds;
 use super::common::{Id, RepositoryError};
 use super::lane;
 use super::priority;
@@ -12,7 +13,9 @@ pub struct Task {
   pub lane_id: Id,
   pub priority: Id,
   pub summary: String,
+  #[serde(with = "ts_milliseconds")]
   pub created_at: DateTime<Utc>,
+  #[serde(with = "ts_milliseconds")]
   pub updated_at: DateTime<Utc>
 }
 

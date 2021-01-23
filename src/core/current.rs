@@ -1,6 +1,7 @@
 use serde::{Deserialize, Serialize};
 use anyhow::Result;
 use chrono::{DateTime, Utc};
+use chrono::serde::ts_milliseconds;
 use super::common::{Id, RepositoryError};
 use super::task;
 use super::pomodoro;
@@ -9,6 +10,7 @@ use super::pomodoro;
 pub struct Current {
   pub id: Id,
   pub task_id: Id,
+  #[serde(with = "ts_milliseconds")]
   pub started_at: DateTime<Utc>
 }
 
@@ -16,6 +18,7 @@ pub struct Current {
 pub struct CurrentTask {
   pub id: Id,
   pub task: task::Task,
+  #[serde(with = "ts_milliseconds")]
   pub started_at: DateTime<Utc>
 }
 

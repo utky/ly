@@ -1,13 +1,17 @@
 use anyhow::Result;
 use chrono::{DateTime, Utc};
+use serde::{Deserialize, Serialize};
+use chrono::serde::ts_milliseconds;
 use super::common::{Id};
 
 /// Task to be done.
-#[derive(Debug)]
+#[derive(Debug, Serialize, Deserialize)]
 pub struct Priority {
   pub id: Id,
   pub name: String,
+  #[serde(with = "ts_milliseconds")]
   pub created_at: DateTime<Utc>,
+  #[serde(with = "ts_milliseconds")]
   pub updated_at: DateTime<Utc>
 }
 

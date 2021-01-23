@@ -1,13 +1,17 @@
 use anyhow::Result;
+use serde::{Deserialize, Serialize};
 use chrono::{DateTime, Utc};
+use chrono::serde::ts_milliseconds;
 use super::common::Id;
 
 /// Lane of task list.
-#[derive(Debug)]
+#[derive(Debug, Serialize, Deserialize)]
 pub struct Lane {
   pub id: Id,
   pub name: String,
+  #[serde(with = "ts_milliseconds")]
   pub created_at: DateTime<Utc>,
+  #[serde(with = "ts_milliseconds")]
   pub updated_at: DateTime<Utc>
 }
 

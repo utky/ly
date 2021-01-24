@@ -137,14 +137,14 @@ impl task::Mod for Session {
 
 
 fn row_to_current(row: &Row) -> SqlResult<current::Current> {
-  Ok(current::Current {id: row.get(0)?, task_id: row.get(1)?, started_at: row.get(2)?})
+  Ok(current::Current {id: row.get(0)?, task_id: row.get(1)?, started_at: row.get(2)?, duration_min: row.get(3)?})
 }
-static START: &str = "INSERT INTO current(id, task_id) VALUES (0, ?)";
+static START: &str = "INSERT INTO current(id, task_id, duration_min) VALUES (0, ?, ?)";
 static COMPLETE: &str = "DELETE FROM current WHERE id = 0";
-static GET_CURRENT: &str = "SELECT id, task_id, started_at FROM current WHERE id = 0";
+static GET_CURRENT: &str = "SELECT id, task_id, started_at, duration_min FROM current WHERE id = 0";
 impl current::Lifecycle for Session  {
-  fn start(&mut self, task_id: Id) -> Result<current::Current> {
-    self.conn.execute(START, params![task_id])?;
+  fn start(&mut self, task_id: Id, duration_min: i64) -> Result<current::Current> {
+    self.conn.execute(START, params![task_id, duration_min])?;
     let c = self.conn.query_row(GET_CURRENT, NO_PARAMS, row_to_current)?;
     Ok(c) 
   }

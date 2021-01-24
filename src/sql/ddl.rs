@@ -31,6 +31,7 @@ const CURRENT: &'static str = "CREATE TABLE IF NOT EXISTS current (
   id INTEGER PRIMARY KEY,
   task_id INTEGER,
   started_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  duration_min INTEGER NOT NULL,
   FOREIGN KEY (task_id) REFERENCES tasks (id)
 )";
 

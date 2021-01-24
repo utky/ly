@@ -8,8 +8,6 @@ module Main exposing (..)
 
 
 import Browser exposing (Document)
---import Platform.Cmd exposing (Cmd)
---import Platform.Sub exposing (Sub)
 import Html exposing (Html, button, div, text)
 import Html.Events exposing (onClick)
 import Time exposing (every, Posix)
@@ -35,7 +33,8 @@ main =
 type alias Id = Int
 
 type alias Model =
-  { currentTask : Maybe CurrentTask
+  { now : Posix
+  , currentTask : Maybe CurrentTask
   , errorMsg : Maybe String
   , loading: Bool
   }
@@ -44,6 +43,7 @@ type alias CurrentTask =
   { id: Id
   , task: Task
   , startedAt: Posix
+  , durationMin: Int
   }
 
 type alias Task =
@@ -59,7 +59,8 @@ type alias Task =
 init : () -> (Model, Cmd Msg)
 init _ =
   (
-    { currentTask = Nothing
+    { now = Time.millisToPosix 0
+    , currentTask = Nothing
     , errorMsg = Nothing
     , loading = False
     }
@@ -91,10 +92,11 @@ decodeTask =
 
 decodeCurrentTask : D.Decoder CurrentTask
 decodeCurrentTask =
-  D.map3 CurrentTask
+  D.map4 CurrentTask
     (D.field "id" D.int)
     (D.field "task" decodeTask)
     (D.field "started_at" posix)
+    (D.field "duration_min" D.int)
 
 handleCurrentTask : Result Http.Error CurrentTask -> Msg
 handleCurrentTask result =
@@ -151,7 +153,7 @@ update : Msg -> Model -> (Model, Cmd Msg)
 update msg model =
   case msg of
     Tick now ->
-      (model
+      ({ model | now = now }
       , Http.get
           { url = "/api/current"
           , expect = expectJson handleCurrentTask decodeCurrentTask
@@ -169,6 +171,25 @@ update msg model =
 
 -- VIEW
 
+padZero : Int -> String
+padZero x =
+  if x >= 10 then String.fromInt x else "0" ++ String.fromInt x
+
+timer : Model -> Html Msg
+timer model =
+  case model.currentTask of
+    Nothing ->
+      text "00:00"
+    Just currentTask ->
+      let
+        duration = (Time.posixToMillis model.now) - (Time.posixToMillis currentTask.startedAt)
+        maxSeconds = currentTask.durationMin * 60
+        durationSeconds = duration // 1000
+        remainingSeconds = maxSeconds - durationSeconds
+        minutes = if 0 <= remainingSeconds then remainingSeconds // 60 else 0
+        seconds = if 0 <= remainingSeconds then modBy 60 remainingSeconds else 0
+      in
+        text <| (padZero minutes) ++ ":" ++ (padZero seconds)
 
 view : Model -> Document Msg
 view model =
@@ -177,6 +198,7 @@ view model =
      [
        div []
            [ div [] [ text (Maybe.withDefault "" (Maybe.map (\t -> t.task.summary) model.currentTask))]
+           , div [] [ timer model]
            , div [] [ text (Maybe.withDefault "" model.errorMsg)]
            ]
      ]

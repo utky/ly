@@ -4,6 +4,7 @@ use crate::cli::TaskList;
 use anyhow::{Result, bail};
 use crate::core::Id;
 use crate::core::current;
+use std::convert::TryFrom;
 
 mod core;
 mod cli;
@@ -22,14 +23,15 @@ impl Drop for CleanupCurrent {
   }
 }
 
-fn start_pomodoro(task_id: Id) -> Result<()> {
+fn start_pomodoro(task_id: Id, duration_min: i64) -> Result<()> {
   let current: Result<current::Current> = {
     let mut session = sql::Session::connect()?;
-    crate::core::current::start(&mut session, task_id)
+    crate::core::current::start(&mut session, task_id, duration_min)
   };
   let session = sql::Session::connect()?;
   let mut cleanup = CleanupCurrent {session: session, current: current?};
-  std::thread::sleep(std::time::Duration::from_secs(10));
+  let duration_sec: u64 = u64::try_from(duration_min * 60).expect("failed to cast i64 to u64");
+  std::thread::sleep(std::time::Duration::from_secs(duration_sec));
   Ok(())
 }
 
@@ -43,7 +45,13 @@ async fn main() -> Result<()> {
       .short("i")
       .value_name("ID")
       .takes_value(true)
-      .required(true));
+      .required(true))
+    .arg(Arg::with_name("duration")
+      .long("duration")
+      .short("d")
+      .value_name("MINUTES")
+      .takes_value(true)
+      .required(false));
   let task_list = SubCommand::with_name("ls").about("list tasks")
     .arg(Arg::with_name("lane")
       .long("lane")
@@ -121,7 +129,8 @@ async fn main() -> Result<()> {
     ("server", _) => Ok(web::start_server().await),
     ("start", Some(start_m)) => {
       let task_id = start_m.value_of("id").unwrap().parse::<i64>().expect("id should be integer");
-      start_pomodoro(task_id)
+      let duration_min = start_m.value_of("duration").unwrap_or("25").parse::<i64>().expect("duration should be integer");
+      start_pomodoro(task_id, duration_min)
     },
     ("task", Some(task_m)) => match task_m.subcommand() {
         ("ls", task_ls_m) => {

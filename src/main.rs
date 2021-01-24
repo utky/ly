@@ -77,7 +77,13 @@ async fn main() -> Result<()> {
       .short("p")
       .value_name("PRIORITY_NAME")
       .takes_value(true)
-      .required(false));
+      .required(false))
+    .arg(Arg::with_name("estimate")
+      .long("estimate")
+      .short("e")
+      .value_name("NUM_OF_POMODORO")
+      .takes_value(true)
+      .required(true));
   let task_mod = SubCommand::with_name("mod").about("modify task")
     .arg(Arg::with_name("id")
       .long("id")
@@ -101,6 +107,12 @@ async fn main() -> Result<()> {
       .long("summary")
       .short("s")
       .value_name("TEXT")
+      .takes_value(true)
+      .required(false))
+    .arg(Arg::with_name("estimate")
+      .long("estimate")
+      .short("e")
+      .value_name("NUM_OF_POMODORO")
       .takes_value(true)
       .required(false));
   let task_rm = SubCommand::with_name("rm").about("remove task");
@@ -149,6 +161,7 @@ async fn main() -> Result<()> {
             task_add_m.value_of("lane").unwrap_or("backlog"),
             task_add_m.value_of("priority").unwrap_or("n"),
             task_add_m.value_of("summary").unwrap(),
+            task_add_m.value_of("estimate").unwrap().parse::<i64>().expect("estimate should be integer"),
           )?;
           Ok(())
         }
@@ -160,6 +173,7 @@ async fn main() -> Result<()> {
             task_mod_m.value_of("lane"),
             task_mod_m.value_of("priority"),
             task_mod_m.value_of("summary"),
+            task_mod_m.value_of("estimate").map(|v| v.parse::<i64>().expect("estimate should be integer"))
           )?;
           Ok(())
         }

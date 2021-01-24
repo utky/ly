@@ -88,20 +88,20 @@ impl priority::Fetch for Session {
 
 }
 
-static ADD_TASK: &str = "INSERT INTO tasks(lane_id, priority, summary) VALUES (?, ?, ?)";
+static ADD_TASK: &str = "INSERT INTO tasks(lane_id, priority, summary, estimate) VALUES (?, ?, ?, ?)";
 impl task::Add for Session {
-  fn add_task(&mut self, lane_id: Id, priority: Id, summary: &str) -> Result<()> {
-    self.conn.execute(ADD_TASK, params![lane_id, priority, summary])?;
+  fn add_task(&mut self, lane_id: Id, priority: Id, summary: &str, estimate: i64) -> Result<()> {
+    self.conn.execute(ADD_TASK, params![lane_id, priority, summary, estimate])?;
     Ok(())
   }
 }
 
 fn row_to_task(row: &Row) -> SqlResult<task::Task> {
-  Ok(task::Task {id: row.get(0)?, lane_id: row.get(1)?, priority: row.get(2)?, summary: row.get(3)?, created_at: row.get(4)?, updated_at: row.get(5)?})
+  Ok(task::Task {id: row.get(0)?, lane_id: row.get(1)?, priority: row.get(2)?, summary: row.get(3)?, estimate: row.get(4)?, created_at: row.get(5)?, updated_at: row.get(6)?})
 }
 
-static FETCH_TASK_BY_ID: &str = "SELECT id, lane_id, priority, summary, created_at, updated_at FROM tasks WHERE id = ?";
-static FETCH_ALL_TASKS: &str = "SELECT id, lane_id, priority, summary, created_at, updated_at FROM tasks WHERE EXISTS (SELECT id FROM lanes WHERE name = ? AND lanes.id = tasks.lane_id) ORDER BY priority DESC";
+static FETCH_TASK_BY_ID: &str = "SELECT id, lane_id, priority, summary, estimate, created_at, updated_at FROM tasks WHERE id = ?";
+static FETCH_ALL_TASKS: &str = "SELECT id, lane_id, priority, summary, estimate, created_at, updated_at FROM tasks WHERE EXISTS (SELECT id FROM lanes WHERE name = ? AND lanes.id = tasks.lane_id) ORDER BY priority DESC";
 impl task::Fetch for Session {
   fn fetch_task_by_id(&mut self, id: Id) -> Result<Option<task::Task>> {
     self.conn.query_row_and_then(FETCH_TASK_BY_ID, params![id], |row| {
@@ -123,14 +123,15 @@ impl task::Fetch for Session {
   }
 }
 
-static MOD_TASK: &str = "UPDATE tasks SET lane_id = ?, priority = ?, summary = ?, updated_at = datetime('now') WHERE id = ?";
+static MOD_TASK: &str = "UPDATE tasks SET lane_id = ?, priority = ?, summary = ?, estimate = ?, updated_at = datetime('now') WHERE id = ?";
 impl task::Mod for Session {
-  fn mod_task(&mut self, id: Id, lane_id: Option<&Id>, priority: Option<&Id>, summary: Option<&str>) -> Result<()> {
+  fn mod_task(&mut self, id: Id, lane_id: Option<&Id>, priority: Option<&Id>, summary: Option<&str>, estimate: Option<i64>) -> Result<()> {
     let old = self.conn.query_row_and_then(FETCH_TASK_BY_ID, params![id], |row| row_to_task(row))?;
     let set_lane_id = lane_id.unwrap_or(&old.lane_id);
     let set_priority = priority.unwrap_or(&old.priority);
     let set_summary = summary.unwrap_or(&old.summary);
-    self.conn.execute(MOD_TASK, params![set_lane_id, set_priority, set_summary, id])?;
+    let set_estimate = estimate.unwrap_or(old.estimate);
+    self.conn.execute(MOD_TASK, params![set_lane_id, set_priority, set_summary, set_estimate, id])?;
     Ok(())
   }
 }
@@ -215,26 +216,29 @@ mod tests {
   #[test]
   fn test_insert_fetch_task_by_id() {
     let mut session = get_initialized_session();
-    let _ = session.add_task(2, 0, "test").expect("adding task should not failed");
+    let _ = session.add_task(2, 0, "test", 1).expect("adding task should not failed");
     let t = session.fetch_task_by_id(1).expect("could not fetch task by id 1").expect("returned value should be Some");
     assert_eq!(t.lane_id, 2);
     assert_eq!(t.priority, 0);
     assert_eq!(t.summary, "test");
+    assert_eq!(t.estimate, 1);
   }
 
   #[test]
   fn test_insert_fetch_all_tasks() {
     let mut session = get_initialized_session();
-    let _ = session.add_task(1, 0, "test1").expect("adding task should not failed");
-    let _ = session.add_task(1, 1, "test2").expect("adding task should not failed");
+    let _ = session.add_task(1, 0, "test1", 2).expect("adding task should not failed");
+    let _ = session.add_task(1, 1, "test2", 3).expect("adding task should not failed");
     let backlog = session.fetch_all_tasks("backlog").expect("failed to fech backlog tasks");
     assert_eq!(backlog.len(), 2);
     assert_eq!(backlog[0].lane_id, 1);
     assert_eq!(backlog[0].priority, 1);
     assert_eq!(backlog[0].summary, "test2");
+    assert_eq!(backlog[0].estimate, 3);
     assert_eq!(backlog[1].lane_id, 1);
     assert_eq!(backlog[1].priority, 0);
     assert_eq!(backlog[1].summary, "test1");
+    assert_eq!(backlog[1].estimate, 2);
     let todo = session.fetch_all_tasks("todo").expect("failed to fech backlog tasks");
     assert_eq!(todo.len(), 0);
   }
@@ -249,8 +253,8 @@ mod tests {
   #[test]
   fn test_mod_task_move_lane() {
     let mut session = get_initialized_session();
-    let _ = session.add_task(1, 0, "test1").expect("adding task test1 should not failed");
-    let _ = session.mod_task(1, Some(&2), None, None).expect("modify task 1");
+    let _ = session.add_task(1, 0, "test1", 2).expect("adding task test1 should not failed");
+    let _ = session.mod_task(1, Some(&2), None, None, None).expect("modify task 1");
     let t = session.fetch_task_by_id(1).expect("could not fetch task by id 1").expect("returned value should be Some");
     assert_eq!(t.lane_id, 2);
   }
@@ -258,8 +262,8 @@ mod tests {
   #[test]
   fn test_mod_task_higher_priority_and_new_summary() {
     let mut session = get_initialized_session();
-    let _ = session.add_task(1, 0, "test1").expect("adding task test1 should not failed");
-    let _ = session.mod_task(1, None, Some(&3), Some("test1 new")).expect("modify task 1");
+    let _ = session.add_task(1, 0, "test1", 3).expect("adding task test1 should not failed");
+    let _ = session.mod_task(1, None, Some(&3), Some("test1 new"), None).expect("modify task 1");
     let t = session.fetch_task_by_id(1).expect("could not fetch task by id 1").expect("returned value should be Some");
     assert_eq!(t.priority, 3);
     assert_eq!(t.summary, "test1 new");

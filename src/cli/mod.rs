@@ -29,24 +29,9 @@ impl <'l, 'p, 't> TaskList<'l, 'p, 't> {
     for t in self.tasks {
       let lane_name = self.lanes.get(&t.lane_id).map(|l| l.name.as_ref()).unwrap_or(UNKNOWN);
       let priority_name = self.priorities.get(&t.priority).map(|p| p.name.as_ref()).unwrap_or(UNKNOWN);
-      buffer.push_str(format!("{}\t{}\t{}\t{}\n", t.id, lane_name, priority_name, t.summary).as_ref());
+      buffer.push_str(format!("{}\t{}\t{}\t{}\t{}\n", t.id, lane_name, priority_name, t.estimate, t.summary).as_ref());
     }
     buffer
   }
 }
 
-pub trait Row {
-  fn as_row(&self) -> String;
-}
-
-impl Row for lane::Lane {
-  fn as_row(&self) -> String {
-    format!("{}\t{}", self.id, self.name)
-  }
-}
-
-impl Row for task::Task {
-  fn as_row(&self) -> String {
-    format!("{}\t{}\t{}", self.id, self.lane_id, self.summary)
-  }
-}

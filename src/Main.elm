@@ -51,6 +51,7 @@ type alias Task =
   , laneId: Id
   , priority: Id
   , summary: String
+  , estimate: Int
   , createdAt: Posix
   , updatedAt: Posix
   }
@@ -82,11 +83,12 @@ posix = D.map Time.millisToPosix D.int
 
 decodeTask : D.Decoder Task
 decodeTask =
-  D.map6 Task
+  D.map7 Task
     (D.field "id" D.int)
     (D.field "lane_id" D.int)
     (D.field "priority" D.int)
     (D.field "summary" D.string)
+    (D.field "estimate" D.int)
     (D.field "created_at" posix)
     (D.field "updated_at" posix)
 

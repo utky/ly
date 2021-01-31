@@ -117,7 +117,7 @@ handleCurrentTask result =
       CurrentTaskFailure url
 
     Err Http.Timeout ->
-      CurrentTaskFailure "itimeout"
+      CurrentTaskFailure "timeout"
 
     Err Http.NetworkError ->
       CurrentTaskFailure "network error"

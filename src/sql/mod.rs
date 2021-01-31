@@ -1,12 +1,14 @@
 use anyhow::{Result, Context};
-use rusqlite::{params, Connection, NO_PARAMS, Row, Result as SqlResult};
+use rusqlite::{params, Connection, NO_PARAMS, Row, Result as SqlResult, OptionalExtension};
 use chrono::{DateTime, Utc};
+use chrono::NaiveDate;
 use crate::core::{Id};
 use crate::core::lane;
 use crate::core::task;
 use crate::core::priority;
 use crate::core::pomodoro;
 use crate::core::current;
+use crate::core::plan;
 
 pub mod ddl;
 
@@ -45,9 +47,8 @@ static FETCH_LANE_BY_NAME: &str = "SELECT id, name, created_at, updated_at FROM 
 static FETCH_ALL_LANES: &str = "SELECT id, name, created_at, updated_at FROM lanes";
 impl lane::Fetch for Session {
   fn fetch_lane_by_name(&mut self, name: &str) -> Result<Option<lane::Lane>> {
-    self.conn.query_row_and_then(FETCH_LANE_BY_NAME, params![name], |row| {
-      Ok(Some(row_to_lane(row)?))
-    })
+    let lane = self.conn.query_row_and_then(FETCH_LANE_BY_NAME, params![name], row_to_lane).optional()?;
+    Ok(lane)
   }
   fn fetch_all_lanes(&mut self) -> Result<Vec<lane::Lane>> {
     let mut stmt = self.conn.prepare(FETCH_ALL_LANES)?;
@@ -186,14 +187,57 @@ impl pomodoro::Fetch for Session {
   }
 }
 
+static INSERT_PLAN: &str = "INSERT INTO plans(date, note) VALUES (?, ?)";
+impl plan::Add for Session {
+  fn add_plan(&mut self, date: &NaiveDate, note: &str) -> Result<()> {
+    self.conn.execute(INSERT_PLAN, params![date, note])?;
+    Ok(())
+  }
+}
+fn row_to_plan(row: &Row) -> SqlResult<plan::Plan> {
+  Ok(plan::Plan {date: row.get(0)?, note: row.get(1)?, created_at: row.get(2)?, updated_at: row.get(3)?})
+}
+static FETCH_PLAN_BY_DATE: &str = "SELECT date, note, created_at, updated_at FROM plans WHERE date = ?";
+static FETCH_PLANNED_TASKS: &str = "SELECT t.id, t.lane_id, t.priority, t.summary, t.estimate, t.created_at, t.updated_at FROM tasks t JOIN planned_tasks p ON t.id = p.task_id WHERE p.date = ?";
+impl plan::Fetch for Session {
+  fn fetch_by_date(&mut self, date: &NaiveDate) -> Result<Option<plan::Plan>> {
+    let result = self.conn.query_row(FETCH_PLAN_BY_DATE, params![date], row_to_plan).optional()?;
+    Ok(result)
+  }
+  fn fetch_planned_tasks(&mut self, date: &NaiveDate) -> Result<Vec<task::Task>> {
+    let mut stmt = self.conn.prepare(FETCH_PLANNED_TASKS)?;
+    let rows = stmt.query_map(params![date], |r| row_to_task(r))?;
+    let mut results = Vec::new();
+    for r in rows {
+      results.push(r?);
+    }
+    Ok(results)
+  }
+}
+
+static INSERT_PLANNED_TASK: &str = "INSERT INTO planned_tasks(date, task_id) VALUES (?, ?)";
+static DELETE_PLANNED_TASK: &str = "DELETE FROM planned_tasks WHERE date = ? AND task_id = ?";
+impl plan::Mod for Session {
+  fn add_planned_task(&mut self, date: &NaiveDate, task_id: &Id) -> Result<()> {
+    self.conn.execute(INSERT_PLANNED_TASK, params![date, task_id])?;
+    Ok(())
+  }
+  fn remove_planned_task(&mut self, date: &NaiveDate, task_id: &Id) -> Result<()> {
+    self.conn.execute(DELETE_PLANNED_TASK, params![date, task_id])?;
+    Ok(())
+  }
+}
+
 #[cfg(test)]
 mod tests {
   use anyhow::Result;
   use rusqlite::Connection;
+  use chrono::NaiveDate;
   use super::Session;
   use super::lane::{Fetch as LaneFetch};
   use super::task::{Add, Fetch as TaskFetch, Mod as TaskMod};
   use super::priority::{Fetch as PriorityFetch};
+  use super::plan;
   
   fn connect_memory() -> Result<Session> {
     let conn = Connection::open_in_memory()?;
@@ -267,5 +311,31 @@ mod tests {
     let t = session.fetch_task_by_id(1).expect("could not fetch task by id 1").expect("returned value should be Some");
     assert_eq!(t.priority, 3);
     assert_eq!(t.summary, "test1 new");
+  }
+
+  #[test]
+  fn test_mod_plan_add_task() {
+    let mut session = get_initialized_session();
+    let _ = session.add_task(1, 0, "test1", 3).expect("adding task test1 should not failed");
+    let d = NaiveDate::from_ymd(2015, 3, 14);
+    let a = vec![1];
+    let r = Vec::new();
+    let _ = plan::mod_plan(&mut session, &d, &a, &r).expect("failed to insert planned_task");
+    let ts = plan::list_planned_tasks(&mut session, &d).expect("failed to fetch planned_tasks");
+    assert_eq!(ts[0].priority, 0);
+    assert_eq!(ts[0].summary, "test1");
+  }
+
+  #[test]
+  fn test_mod_plan_remove_task() {
+    let mut session = get_initialized_session();
+    let _ = session.add_task(1, 0, "test1", 3).expect("adding task test1 should not failed");
+    let d = NaiveDate::from_ymd(2015, 3, 14);
+    let include_task = vec![1];
+    let empty = Vec::new();
+    let _ = plan::mod_plan(&mut session, &d, &include_task, &empty).expect("failed to insert planned_task");
+    let _ = plan::mod_plan(&mut session, &d, &empty, &include_task).expect("failed to delete planned_task");
+    let ts = plan::list_planned_tasks(&mut session, &d).expect("failed to fetch planned_tasks");
+    assert_eq!(ts.len(), 0);
   }
 }

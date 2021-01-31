@@ -1,4 +1,4 @@
-module Main exposing (..)
+port module Main exposing (..)
 
 -- Press buttons to increment and decrement a counter.
 --
@@ -18,6 +18,7 @@ import Time
 -- MAIN
 
 
+main : Program () Model Msg
 main =
   Browser.document
     { init = init
@@ -26,7 +27,7 @@ main =
     , view = view
     }
 
-
+port notify : String -> Cmd msg
 
 -- MODEL
 
@@ -150,7 +151,6 @@ expectJson toMsg decoder =
             Err err ->
               Err (Http.BadBody (D.errorToString err))
 
-
 update : Msg -> Model -> (Model, Cmd Msg)
 update msg model =
   case msg of
@@ -169,7 +169,11 @@ update msg model =
       ({ model | currentTask = Nothing, errorMsg = Just message }, Cmd.none)
 
     CurrentTaskNotFound ->
-      ({ model | currentTask = Nothing, errorMsg = Nothing }, Cmd.none)
+      ({ model | currentTask = Nothing, errorMsg = Nothing }
+      , case model.currentTask of
+        Just(_) -> notify "pomodoro completed"
+        Nothing -> Cmd.none
+      )
 
 -- VIEW
 

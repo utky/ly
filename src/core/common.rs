@@ -5,14 +5,14 @@ pub type Id = i64;
 
 #[derive(Debug, Clone)]
 pub enum RepositoryError {
-  NotFound,
+    NotFound,
 }
 
 impl Display for RepositoryError {
     fn fmt(&self, f: &mut Formatter) -> Result {
-      match self {
-        RepositoryError::NotFound => write!(f, "Entity not found"),
-      }
+        match self {
+            RepositoryError::NotFound => write!(f, "Entity not found"),
+        }
     }
 }
 

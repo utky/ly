@@ -5,6 +5,7 @@ use crate::core::pomodoro;
 use crate::core::priority;
 use crate::core::task;
 use crate::core::Id;
+use crate::config::Config;
 use anyhow::{Context, Result};
 use chrono::NaiveDate;
 use chrono::{DateTime, Utc};
@@ -20,9 +21,8 @@ impl Session {
     fn new(conn: Connection) -> Session {
         Session { conn }
     }
-    pub fn connect() -> Result<Session> {
-        let path = "./ly.db";
-        let conn = Connection::open(&path)?;
+    pub fn connect(config: &Config) -> Result<Session> {
+        let conn = Connection::open(&config.database)?;
         Ok(Session::new(conn))
     }
 

@@ -1,4 +1,5 @@
 use super::core::current;
+use super::config;
 use super::public;
 use anyhow::Result;
 use warp::filters::path::end;
@@ -6,9 +7,13 @@ use warp::http::Response;
 use warp::reply::{html, json};
 use warp::{path, Filter};
 
-async fn get_current() -> Result<impl warp::Reply, warp::Rejection> {
+fn with_config(conf: config::Config) -> impl Filter<Extract = (config::Config,), Error = std::convert::Infallible> + Clone {
+    warp::any().map(move || conf.clone())
+}
+
+async fn get_current(conf: config::Config) -> Result<impl warp::Reply, warp::Rejection> {
     let result: Result<Option<current::CurrentTask>> = {
-        let session = crate::sql::Session::connect();
+        let session = crate::sql::Session::connect(&conf);
         session.and_then(|s| {
             let mut ms = s;
             current::get_current_task(&mut ms)
@@ -21,7 +26,7 @@ async fn get_current() -> Result<impl warp::Reply, warp::Rejection> {
     }
 }
 
-pub async fn start_server() {
+pub async fn start_server(conf: config::Config) {
     let routes = path!("index.js")
         .map(|| {
             Response::builder()
@@ -35,6 +40,7 @@ pub async fn start_server() {
         }))
         .or(path!("api" / "current")
             .and(warp::get())
+            .and(with_config(conf.clone()))
             .and_then(get_current))
         .or(end().map(|| html(public::index_html())));
     warp::serve(routes).run(([0, 0, 0, 0], 8081)).await;

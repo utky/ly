@@ -12,6 +12,7 @@ mod core;
 mod public;
 mod sql;
 mod web;
+mod config;
 
 struct CleanupCurrent {
     session: sql::Session,
@@ -34,12 +35,12 @@ fn parse_or_today(input: Option<&str>) -> Result<NaiveDate> {
     }
 }
 
-fn start_pomodoro(task_id: Id, duration_min: i64) -> Result<()> {
+fn start_pomodoro(conf: &config::Config, task_id: Id, duration_min: i64) -> Result<()> {
     let current: Result<current::Current> = {
-        let mut session = sql::Session::connect()?;
+        let mut session = sql::Session::connect(conf)?;
         crate::core::current::start(&mut session, task_id, duration_min)
     };
-    let session = sql::Session::connect()?;
+    let session = sql::Session::connect(conf)?;
     let mut _cleanup = CleanupCurrent {
         session,
         current: current?,
@@ -215,14 +216,15 @@ async fn main() -> Result<()> {
         .subcommand(plan)
         .get_matches();
 
+    let conf = config::Config::from_env()?;
     match matches.subcommand() {
         ("init", _) => {
-            let mut session = sql::Session::connect()?;
+            let mut session = sql::Session::connect(&conf)?;
             session.initialize()?;
             Ok(())
         }
         ("server", _) => {
-          web::start_server().await;
+          web::start_server(conf).await;
           Ok(())
         },
         ("start", Some(start_m)) => {
@@ -236,11 +238,11 @@ async fn main() -> Result<()> {
                 .unwrap_or("25")
                 .parse::<i64>()
                 .expect("duration should be integer");
-            start_pomodoro(task_id, duration_min)
+            start_pomodoro(&conf, task_id, duration_min)
         }
         ("task", Some(task_m)) => match task_m.subcommand() {
             ("ls", task_ls_m) => {
-                let mut session = sql::Session::connect()?;
+                let mut session = sql::Session::connect(&conf)?;
                 let lanes = core::lane::fetch_all_lanes(&mut session)?;
                 let priorities = core::priority::fetch_all_priority(&mut session)?;
                 let tasks = core::task::list_all_tasks(
@@ -252,7 +254,7 @@ async fn main() -> Result<()> {
                 Ok(())
             }
             ("add", Some(task_add_m)) => {
-                let mut session = sql::Session::connect()?;
+                let mut session = sql::Session::connect(&conf)?;
                 core::task::add_task(
                     &mut session,
                     task_add_m.value_of("lane").unwrap_or("backlog"),
@@ -267,7 +269,7 @@ async fn main() -> Result<()> {
                 Ok(())
             }
             ("mod", Some(task_mod_m)) => {
-                let mut session = sql::Session::connect()?;
+                let mut session = sql::Session::connect(&conf)?;
                 core::task::mod_task(
                     &mut session,
                     task_mod_m
@@ -291,7 +293,7 @@ async fn main() -> Result<()> {
         },
         ("plan", Some(plan_m)) => match plan_m.subcommand() {
             ("ls", Some(plan_ls_m)) => {
-                let mut session = sql::Session::connect()?;
+                let mut session = sql::Session::connect(&conf)?;
                 let date = parse_or_today(plan_ls_m.value_of("date"))?;
                 let lanes = core::lane::fetch_all_lanes(&mut session)?;
                 let priorities = core::priority::fetch_all_priority(&mut session)?;
@@ -302,7 +304,7 @@ async fn main() -> Result<()> {
                 Ok(())
             }
             ("mod", Some(plan_mod_m)) => {
-                let mut session = sql::Session::connect()?;
+                let mut session = sql::Session::connect(&conf)?;
                 let date = parse_or_today(plan_mod_m.value_of("date"))?;
                 let added: Vec<Id> = plan_mod_m
                     .values_of("add")

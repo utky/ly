@@ -157,8 +157,8 @@ impl current::Lifecycle for Session  {
 }
 
 impl current::Get for Session {
-  fn get(&mut self) -> Result<current::Current> {
-    let c = self.conn.query_row(GET_CURRENT, NO_PARAMS, row_to_current)?;
+  fn get(&mut self) -> Result<Option<current::Current>> {
+    let c = self.conn.query_row(GET_CURRENT, NO_PARAMS, row_to_current).optional()?;
     Ok(c)
   }
 }

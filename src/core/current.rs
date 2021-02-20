@@ -30,7 +30,7 @@ pub trait Lifecycle {
 }
 
 pub trait Get {
-  fn get(&mut self) -> Result<Current>;
+  fn get(&mut self) -> Result<Option<Current>>;
 }
 
 pub fn start<R>(r: &mut R, task_id: Id, duration_min: i64) -> Result<Current>
@@ -47,9 +47,14 @@ pub fn complete<R>(r: &mut R, current: &Current) -> Result<()>
   r.complete()
 }
 
-pub fn get_current_task<R>(r: &mut R) -> Result<CurrentTask>
+pub fn get_current_task<R>(r: &mut R) -> Result<Option<CurrentTask>>
   where R: Get + task::Fetch {
   let c = r.get()?;
-  let t = r.fetch_task_by_id(c.task_id)?.ok_or(RepositoryError::NotFound)?;
-  Ok(CurrentTask {id: c.id, task: t, started_at: c.started_at, duration_min: c.duration_min})
+  match c {
+    Some(c) => {
+      let t = r.fetch_task_by_id(c.task_id)?.ok_or(RepositoryError::NotFound)?;
+      Ok(Some(CurrentTask {id: c.id, task: t, started_at: c.started_at, duration_min: c.duration_min}))
+    },
+    None => Ok(None)
+  }
 }

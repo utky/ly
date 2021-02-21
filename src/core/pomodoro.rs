@@ -19,10 +19,6 @@ pub trait Fetch {
     fn fetch_by_task_id(&mut self, task_id: Id) -> Result<Vec<Pomodoro>>;
 }
 
-// unused
-// pub fn complete_pomodoro<R>(r: &mut R, task_id: Id, started_at: DateTime<Utc>) -> Result<()> where R: Complete {
-//   r.complete_pomodoro(task_id, started_at)
-// }
 //
 // pub fn fetch_by_task_id<R>(r: &mut R, task_id: Id) -> Result<Vec<Pomodoro>> where R: Fetch {
 //   r.fetch_by_task_id(task_id)

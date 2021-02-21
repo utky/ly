@@ -1,14 +1,13 @@
+use crate::config::Config;
 use crate::core::current;
 use crate::core::lane;
-use crate::core::plan;
 use crate::core::pomodoro;
 use crate::core::priority;
 use crate::core::task;
+use crate::core::todo;
 use crate::core::Id;
-use crate::config::Config;
 use anyhow::{Context, Result};
-use chrono::NaiveDate;
-use chrono::{DateTime, Utc};
+use chrono::{DateTime, Duration, Utc};
 use rusqlite::{params, Connection, OptionalExtension, Result as SqlResult, Row, NO_PARAMS};
 
 pub mod ddl;
@@ -231,35 +230,72 @@ impl pomodoro::Fetch for Session {
     }
 }
 
-static INSERT_PLAN: &str = "INSERT INTO plans(date, note) VALUES (?, ?)";
-impl plan::Add for Session {
-    fn add_plan(&mut self, date: &NaiveDate, note: &str) -> Result<()> {
-        self.conn.execute(INSERT_PLAN, params![date, note])?;
+/* ---------------------------------------------------------------
+ * todo
+ * ---------------------------------------------------------------
+ */
+static INSERT_TODO: &str = "INSERT INTO todo(date, note) VALUES (?, ?)";
+impl todo::Add for Session {
+    fn add_todo(&mut self, date: &todo::TodoDate, note: &str) -> Result<()> {
+        self.conn.execute(INSERT_TODO, params![date, note])?;
         Ok(())
     }
 }
-fn row_to_plan(row: &Row) -> SqlResult<plan::Plan> {
-    Ok(plan::Plan {
+fn row_to_todo(row: &Row) -> SqlResult<todo::Todo> {
+    Ok(todo::Todo {
         date: row.get(0)?,
         note: row.get(1)?,
         created_at: row.get(2)?,
         updated_at: row.get(3)?,
     })
 }
-static FETCH_PLAN_BY_DATE: &str =
-    "SELECT date, note, created_at, updated_at FROM plans WHERE date = ?";
-static FETCH_PLANNED_TASKS: &str = "SELECT t.id, t.lane_id, t.priority, t.summary, t.estimate, t.created_at, t.updated_at FROM tasks t JOIN planned_tasks p ON t.id = p.task_id WHERE p.date = ?";
-impl plan::Fetch for Session {
-    fn fetch_by_date(&mut self, date: &NaiveDate) -> Result<Option<plan::Plan>> {
+fn row_to_todo_task(row: &Row) -> SqlResult<todo::TodoTask> {
+    Ok(todo::TodoTask {
+        date: row.get(0)?,
+        task_id: row.get(1)?,
+        lane_id: row.get(2)?,
+        priority: row.get(3)?,
+        summary: row.get(4)?,
+        estimate: row.get(5)?,
+        actual: row.get(6)?,
+    })
+}
+static FETCH_TODO_BY_DATE: &str =
+    "SELECT date, note, created_at, updated_at FROM todo WHERE date = ?";
+static FETCH_TODO_TASKS: &str = "SELECT
+    todo.date AS date,
+    task.id AS task_id,
+    task.lane_id AS lane_id,
+    task.priority AS priority,
+    task.summary AS summary,
+    task.estimate AS estimate,
+    CASE WHEN result.actual IS NULL THEN 0 ELSE result.actual END AS actual
+FROM tasks task
+JOIN todo_tasks todo ON task.id = todo.task_id
+LEFT JOIN (
+    SELECT
+        task_id AS task_id,
+        COUNT(task_id) AS actual
+    FROM pomodoros
+    WHERE (started_at >= ? AND started_at < ?)
+    GROUP BY task_id
+) result ON task.id = result.task_id
+WHERE todo.date = ?
+ORDER BY todo.todo_order
+";
+impl todo::Fetch for Session {
+    fn fetch_by_date(&mut self, date: &todo::TodoDate) -> Result<Option<todo::Todo>> {
         let result = self
             .conn
-            .query_row(FETCH_PLAN_BY_DATE, params![date], row_to_plan)
+            .query_row(FETCH_TODO_BY_DATE, params![date], row_to_todo)
             .optional()?;
         Ok(result)
     }
-    fn fetch_planned_tasks(&mut self, date: &NaiveDate) -> Result<Vec<task::Task>> {
-        let mut stmt = self.conn.prepare(FETCH_PLANNED_TASKS)?;
-        let rows = stmt.query_map(params![date], |r| row_to_task(r))?;
+    fn fetch_todo_tasks(&mut self, date: &todo::TodoDate) -> Result<Vec<todo::TodoTask>> {
+        let start_time = todo::timestamp_at_start_of_todo_date(date);
+        let end_time = start_time + Duration::days(1);
+        let mut stmt = self.conn.prepare(FETCH_TODO_TASKS)?;
+        let rows = stmt.query_map(params![start_time, end_time, date], |r| row_to_todo_task(r))?;
         let mut results = Vec::new();
         for r in rows {
             results.push(r?);
@@ -268,30 +304,41 @@ impl plan::Fetch for Session {
     }
 }
 
-static INSERT_PLANNED_TASK: &str = "INSERT INTO planned_tasks(date, task_id) VALUES (?, ?)";
-static DELETE_PLANNED_TASK: &str = "DELETE FROM planned_tasks WHERE date = ? AND task_id = ?";
-impl plan::Mod for Session {
-    fn add_planned_task(&mut self, date: &NaiveDate, task_id: &Id) -> Result<()> {
-        self.conn
-            .execute(INSERT_PLANNED_TASK, params![date, task_id])?;
+static INSERT_TODO_TASK: &str =
+    "INSERT INTO todo_tasks(date, task_id, todo_order) VALUES (?, ?, ?)";
+static DELETE_TODO_TASK: &str = "DELETE FROM todo_tasks WHERE date = ? AND task_id = ?";
+impl todo::Mod for Session {
+    fn add_todo_task(
+        &mut self,
+        date: &todo::TodoDate,
+        task_id: &Id,
+        todo_order: usize,
+    ) -> Result<()> {
+        self.conn.execute(
+            INSERT_TODO_TASK,
+            params![date, task_id, (todo_order as i64)],
+        )?;
         Ok(())
     }
-    fn remove_planned_task(&mut self, date: &NaiveDate, task_id: &Id) -> Result<()> {
+    fn remove_todo_task(&mut self, date: &todo::TodoDate, task_id: &Id) -> Result<()> {
         self.conn
-            .execute(DELETE_PLANNED_TASK, params![date, task_id])?;
+            .execute(DELETE_TODO_TASK, params![date, task_id])?;
         Ok(())
     }
 }
 
 #[cfg(test)]
 mod tests {
+    use crate::core::pomodoro;
+
+    use crate::core::{Id};
     use super::lane::Fetch as LaneFetch;
-    use super::plan;
     use super::priority::Fetch as PriorityFetch;
     use super::task::{Add, Fetch as TaskFetch, Mod as TaskMod};
+    use super::todo;
     use super::Session;
     use anyhow::Result;
-    use chrono::NaiveDate;
+    use chrono::{Datelike, NaiveDate, DateTime, Utc};
     use rusqlite::Connection;
 
     fn connect_memory() -> Result<Session> {
@@ -402,33 +449,64 @@ mod tests {
 
     #[test]
     fn test_mod_plan_add_task() {
+        let first_task_id = 1;
         let mut session = get_initialized_session();
         let _ = session
             .add_task(1, 0, "test1", 3)
             .expect("adding task test1 should not failed");
         let d = NaiveDate::from_ymd(2015, 3, 14);
-        let a = vec![1];
+        let a = vec![first_task_id];
         let r = Vec::new();
-        let _ = plan::mod_plan(&mut session, &d, &a, &r).expect("failed to insert planned_task");
-        let ts = plan::list_planned_tasks(&mut session, &d).expect("failed to fetch planned_tasks");
+        let _ = todo::mod_todo(&mut session, &d, &a, &r).expect("failed to insert todo_task");
+        let ts = todo::list_todo_tasks(&mut session, &d).expect("failed to fetch todo_tasks");
         assert_eq!(ts[0].priority, 0);
+        assert_eq!(ts[0].estimate, 3);
+        assert_eq!(ts[0].actual, 0);
         assert_eq!(ts[0].summary, "test1");
     }
 
     #[test]
     fn test_mod_plan_remove_task() {
+        let first_task_id = 1;
         let mut session = get_initialized_session();
         let _ = session
             .add_task(1, 0, "test1", 3)
             .expect("adding task test1 should not failed");
         let d = NaiveDate::from_ymd(2015, 3, 14);
-        let include_task = vec![1];
+        let include_task = vec![first_task_id];
         let empty = Vec::new();
-        let _ = plan::mod_plan(&mut session, &d, &include_task, &empty)
-            .expect("failed to insert planned_task");
-        let _ = plan::mod_plan(&mut session, &d, &empty, &include_task)
-            .expect("failed to delete planned_task");
-        let ts = plan::list_planned_tasks(&mut session, &d).expect("failed to fetch planned_tasks");
+        let _ = todo::mod_todo(&mut session, &d, &include_task, &empty)
+            .expect("failed to insert todo_task");
+        let _ = todo::mod_todo(&mut session, &d, &empty, &include_task)
+            .expect("failed to delete todo_task");
+        let ts = todo::list_todo_tasks(&mut session, &d).expect("failed to fetch todo_tasks");
         assert_eq!(ts.len(), 0);
+    }
+
+    fn complete_pomodoro<R>(r: &mut R, task_id: Id, started_at: DateTime<Utc>) -> Result<()>
+    where
+        R: pomodoro::Complete,
+    {
+        r.complete_pomodoro(task_id, started_at)
+    }
+    #[test]
+    fn test_fetch_todo_task_with_pomodoro() {
+        let first_task_id = 1;
+        let mut session = get_initialized_session();
+        let _ = session
+            .add_task(1, 0, "test1", 3)
+            .expect("adding task test1 should not failed");
+        let today_utc = Utc::today();
+        let d = NaiveDate::from_ymd(today_utc.year(), today_utc.month(), today_utc.day());
+        let a = vec![first_task_id];
+        let r = Vec::new();
+        let _ = todo::mod_todo(&mut session, &d, &a, &r).expect("failed to insert todo_task");
+        complete_pomodoro(&mut session, first_task_id, Utc::now())
+            .expect("failed to complate task");
+        let ts = todo::list_todo_tasks(&mut session, &d).expect("failed to fetch todo_tasks");
+        assert_eq!(ts[0].priority, 0);
+        assert_eq!(ts[0].estimate, 3);
+        assert_eq!(ts[0].actual, 1);
+        assert_eq!(ts[0].summary, "test1");
     }
 }

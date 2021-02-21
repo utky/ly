@@ -1,5 +1,5 @@
 extern crate clap;
-use crate::cli::TaskList;
+use crate::cli::TaskContext;
 use crate::core::current;
 use crate::core::Id;
 use anyhow::{bail, Result};
@@ -8,11 +8,11 @@ use clap::{App, Arg, SubCommand};
 use std::convert::TryFrom;
 
 mod cli;
+mod config;
 mod core;
 mod public;
 mod sql;
 mod web;
-mod config;
 
 struct CleanupCurrent {
     session: sql::Session,
@@ -164,7 +164,7 @@ async fn main() -> Result<()> {
         .subcommand(task_add)
         .subcommand(task_mod)
         .subcommand(task_rm);
-    let plan_list = SubCommand::with_name("ls").about("list planned tasks").arg(
+    let todo_list = SubCommand::with_name("ls").about("list todo tasks").arg(
         Arg::with_name("date")
             .long("date")
             .short("d")
@@ -172,8 +172,8 @@ async fn main() -> Result<()> {
             .takes_value(true)
             .required(false),
     );
-    let plan_mod = SubCommand::with_name("mod")
-        .about("modify plan")
+    let todo_mod = SubCommand::with_name("mod")
+        .about("modify todo")
         .arg(
             Arg::with_name("date")
                 .long("date")
@@ -200,11 +200,10 @@ async fn main() -> Result<()> {
                 .multiple(true)
                 .number_of_values(1),
         );
-    let plan = SubCommand::with_name("plan")
-        .about("plan related")
-        .alias("p")
-        .subcommand(plan_list)
-        .subcommand(plan_mod);
+    let todo = SubCommand::with_name("todo")
+        .about("todo related operations")
+        .subcommand(todo_list)
+        .subcommand(todo_mod);
     let matches = App::new("ly")
         .version("1.0")
         .author("Yutaka Imamura")
@@ -213,7 +212,7 @@ async fn main() -> Result<()> {
         .subcommand(server)
         .subcommand(start)
         .subcommand(task)
-        .subcommand(plan)
+        .subcommand(todo)
         .get_matches();
 
     let conf = config::Config::from_env()?;
@@ -224,9 +223,9 @@ async fn main() -> Result<()> {
             Ok(())
         }
         ("server", _) => {
-          web::start_server(conf).await;
-          Ok(())
-        },
+            web::start_server(conf).await;
+            Ok(())
+        }
         ("start", Some(start_m)) => {
             let task_id = start_m
                 .value_of("id")
@@ -243,14 +242,16 @@ async fn main() -> Result<()> {
         ("task", Some(task_m)) => match task_m.subcommand() {
             ("ls", task_ls_m) => {
                 let mut session = sql::Session::connect(&conf)?;
-                let lanes = core::lane::fetch_all_lanes(&mut session)?;
-                let priorities = core::priority::fetch_all_priority(&mut session)?;
                 let tasks = core::task::list_all_tasks(
                     &mut session,
                     task_ls_m.unwrap().value_of("lane").unwrap_or("backlog"),
                 )?;
-                let task_list = TaskList::new(&lanes, &priorities, &tasks);
-                println!("{}", task_list.output());
+                let lanes = core::lane::fetch_all_lanes(&mut session)?;
+                let priorities = core::priority::fetch_all_priority(&mut session)?;
+                let context = TaskContext::new(&lanes, &priorities);
+                for t in tasks {
+                    println!("{}", context.format(t));
+                }
                 Ok(())
             }
             ("add", Some(task_add_m)) => {
@@ -291,16 +292,26 @@ async fn main() -> Result<()> {
             // }
             _ => bail!("invalid options"),
         },
-        ("plan", Some(plan_m)) => match plan_m.subcommand() {
-            ("ls", Some(plan_ls_m)) => {
+        ("todo", Some(todo_m)) => match todo_m.subcommand() {
+            ("ls", Some(todo_ls_m)) => {
                 let mut session = sql::Session::connect(&conf)?;
-                let date = parse_or_today(plan_ls_m.value_of("date"))?;
+                let date = parse_or_today(todo_ls_m.value_of("date"))?;
+                let tasks = core::todo::list_todo_tasks(&mut session, &date)?;
+
+                let estimate = tasks.iter().fold(0, |s, t| s + t.estimate);
+                let actual = tasks.iter().fold(0, |s, t| s + t.actual);
+                let remaining = estimate - actual;
+                println!(
+                    "date:{}\testimate:{}\tactual:{}\tremaining:{}",
+                    date, estimate, actual, remaining
+                );
+
                 let lanes = core::lane::fetch_all_lanes(&mut session)?;
                 let priorities = core::priority::fetch_all_priority(&mut session)?;
-                let tasks = core::plan::list_planned_tasks(&mut session, &date)?;
-                let task_list = TaskList::new(&lanes, &priorities, &tasks);
-                println!("{}", date);
-                println!("{}", task_list.output());
+                let context = TaskContext::new(&lanes, &priorities);
+                for t in tasks {
+                    println!("{}", context.format(t));
+                }
                 Ok(())
             }
             ("mod", Some(plan_mod_m)) => {
@@ -316,7 +327,7 @@ async fn main() -> Result<()> {
                     .unwrap_or_default()
                     .map(|s| s.parse::<i64>().expect("estimate should be integer"))
                     .collect();
-                core::plan::mod_plan(&mut session, &date, &added, &removed)?;
+                core::todo::mod_todo(&mut session, &date, &added, &removed)?;
                 println!("{}", date);
                 Ok(())
             }

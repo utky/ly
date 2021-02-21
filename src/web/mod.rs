@@ -1,5 +1,5 @@
-use super::core::current;
 use super::config;
+use super::core::current;
 use super::public;
 use anyhow::Result;
 use warp::filters::path::end;
@@ -7,7 +7,9 @@ use warp::http::Response;
 use warp::reply::{html, json};
 use warp::{path, Filter};
 
-fn with_config(conf: config::Config) -> impl Filter<Extract = (config::Config,), Error = std::convert::Infallible> + Clone {
+fn with_config(
+    conf: config::Config,
+) -> impl Filter<Extract = (config::Config,), Error = std::convert::Infallible> + Clone {
     warp::any().map(move || conf.clone())
 }
 

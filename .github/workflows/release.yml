@@ -12,9 +12,12 @@ jobs:
         target: [x86_64-unkown-linux-gnu]
     steps:
       - uses: actions/checkout@master
+      - uses: jorelali/setup-elm@v2
+        with:
+          elm-version: 0.19.1
       - name: Compile and release
         uses: Douile/rust-build.action@v0.1.26
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           RUSTTARGET: ${{ matrix.target }}
-          EXTRA_FILES: "README.md LICENSE"
+          EXTRA_FILES: "README.md"

@@ -331,14 +331,14 @@ impl todo::Mod for Session {
 mod tests {
     use crate::core::pomodoro;
 
-    use crate::core::{Id};
     use super::lane::Fetch as LaneFetch;
     use super::priority::Fetch as PriorityFetch;
     use super::task::{Add, Fetch as TaskFetch, Mod as TaskMod};
     use super::todo;
     use super::Session;
+    use crate::core::Id;
     use anyhow::Result;
-    use chrono::{Datelike, NaiveDate, DateTime, Utc};
+    use chrono::{DateTime, Datelike, NaiveDate, Utc};
     use rusqlite::Connection;
 
     fn connect_memory() -> Result<Session> {

@@ -35,34 +35,24 @@ type alias Id = Int
 
 type alias Model =
   { now : Posix
-  , currentTask : Maybe CurrentTask
+  , timer : Maybe Timer
   , errorMsg : Maybe String
   , loading: Bool
   }
 
-type alias CurrentTask =
+type alias Timer =
   { id: Id
-  , task: Task
+  , timer_type: Int
+  , label: String
   , startedAt: Posix
   , durationMin: Int
   }
-
-type alias Task =
-  { id: Id
-  , laneId: Id
-  , priority: Id
-  , summary: String
-  , estimate: Int
-  , createdAt: Posix
-  , updatedAt: Posix
-  }
-
 
 init : () -> (Model, Cmd Msg)
 init _ =
   (
     { now = Time.millisToPosix 0
-    , currentTask = Nothing
+    , timer = Nothing
     , errorMsg = Nothing
     , loading = False
     }
@@ -75,56 +65,46 @@ init _ =
 
 type Msg
   = Tick Posix
-  | CurrentTaskSuccess CurrentTask
-  | CurrentTaskFailure String
-  | CurrentTaskNotFound
+  | TimerSuccess Timer
+  | TimerFailure String
+  | TimerNotFound
 
 posix : D.Decoder Posix
 posix = D.map Time.millisToPosix D.int
 
-decodeTask : D.Decoder Task
-decodeTask =
-  D.map7 Task
+decodeTimer : D.Decoder Timer
+decodeTimer =
+  D.map5 Timer
     (D.field "id" D.int)
-    (D.field "lane_id" D.int)
-    (D.field "priority" D.int)
-    (D.field "summary" D.string)
-    (D.field "estimate" D.int)
-    (D.field "created_at" posix)
-    (D.field "updated_at" posix)
-
-decodeCurrentTask : D.Decoder CurrentTask
-decodeCurrentTask =
-  D.map4 CurrentTask
-    (D.field "id" D.int)
-    (D.field "task" decodeTask)
+    (D.field "timer_type" D.int)
+    (D.field "label" D.string)
     (D.field "started_at" posix)
     (D.field "duration_min" D.int)
 
-handleCurrentTask : Result Http.Error CurrentTask -> Msg
-handleCurrentTask result =
+handleTimer : Result Http.Error Timer -> Msg
+handleTimer result =
   case result of
     Ok t ->
-      CurrentTaskSuccess t
+      TimerSuccess t
 
     Err (Http.BadStatus status) ->
       case status of
         404 ->
-          CurrentTaskNotFound
+          TimerNotFound
         other ->
-          CurrentTaskFailure ("Error" ++ String.fromInt other)
+          TimerFailure ("Error" ++ String.fromInt other)
 
     Err (Http.BadUrl url) ->
-      CurrentTaskFailure url
+      TimerFailure url
 
     Err Http.Timeout ->
-      CurrentTaskFailure "timeout"
+      TimerFailure "timeout"
 
     Err Http.NetworkError ->
-      CurrentTaskFailure "network error"
+      TimerFailure "network error"
 
     Err (Http.BadBody body) ->
-      CurrentTaskFailure ("bad body: " ++ body)
+      TimerFailure ("bad body: " ++ body)
 
 expectJson : (Result Http.Error a -> msg) -> D.Decoder a -> Http.Expect msg
 expectJson toMsg decoder =
@@ -157,20 +137,20 @@ update msg model =
     Tick now ->
       ({ model | now = now }
       , Http.get
-          { url = "/api/current"
-          , expect = expectJson handleCurrentTask decodeCurrentTask
+          { url = "/api/timer"
+          , expect = expectJson handleTimer decodeTimer
           }
       )
 
-    CurrentTaskSuccess task ->
-      ({ model | currentTask = Just task, errorMsg = Nothing }, Cmd.none)
+    TimerSuccess currentTimer ->
+      ({ model | timer = Just currentTimer, errorMsg = Nothing }, Cmd.none)
 
-    CurrentTaskFailure message ->
-      ({ model | currentTask = Nothing, errorMsg = Just message }, Cmd.none)
+    TimerFailure message ->
+      ({ model | timer = Nothing, errorMsg = Just message }, Cmd.none)
 
-    CurrentTaskNotFound ->
-      ({ model | currentTask = Nothing, errorMsg = Nothing }
-      , case model.currentTask of
+    TimerNotFound ->
+      ({ model | timer = Nothing, errorMsg = Nothing }
+      , case model.timer of
         Just(_) -> notify "pomodoro completed"
         Nothing -> Cmd.none
       )
@@ -183,13 +163,13 @@ padZero x =
 
 timer : Model -> Html Msg
 timer model =
-  case model.currentTask of
+  case model.timer of
     Nothing ->
       text "00:00"
-    Just currentTask ->
+    Just currentTimer ->
       let
-        duration = (Time.posixToMillis model.now) - (Time.posixToMillis currentTask.startedAt)
-        maxSeconds = currentTask.durationMin * 60
+        duration = (Time.posixToMillis model.now) - (Time.posixToMillis currentTimer.startedAt)
+        maxSeconds = currentTimer.durationMin * 60
         durationSeconds = duration // 1000
         remainingSeconds = maxSeconds - durationSeconds
         minutes = if 0 <= remainingSeconds then remainingSeconds // 60 else 0
@@ -203,7 +183,7 @@ view model =
     "ly"
      [
        div []
-           [ div [] [ text (Maybe.withDefault "" (Maybe.map (\t -> t.task.summary) model.currentTask))]
+           [ div [] [ text (Maybe.withDefault "" (Maybe.map (\t -> t.label) model.timer))]
            , div [] [ timer model]
            , div [] [ text (Maybe.withDefault "" model.errorMsg)]
            ]

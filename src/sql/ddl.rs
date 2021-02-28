@@ -48,11 +48,30 @@ const TODO_TASKS: &str = "CREATE TABLE IF NOT EXISTS todo_tasks (
   FOREIGN KEY (task_id) REFERENCES tasks (id)
 )";
 
-const CURRENT: &str = "CREATE TABLE IF NOT EXISTS current (
+const TIMER_TYPES: &str = "CREATE TABLE IF NOT EXISTS timer_types (
   id INTEGER PRIMARY KEY,
-  task_id INTEGER,
+  name VARCHAR NOT NULL UNIQUE,
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+ )";
+
+const TIMER_TYPES_INSERT: &str =
+    "INSERT INTO timer_types(id, name) VALUES (0, 'pomodoro'), (1, 'short break'), (2, 'long break')";
+
+const TIMERS: &str = "CREATE TABLE IF NOT EXISTS timers (
+  id INTEGER PRIMARY KEY,
+  timer_type INTEGER NOT NULL,
+  label VARCHAR NOT NULL,
   started_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   duration_min INTEGER NOT NULL,
+  FOREIGN KEY (timer_type) REFERENCES timer_types (id)
+)";
+
+const TIMER_TASKS: &str = "CREATE TABLE IF NOT EXISTS timer_tasks (
+  timer_id INTEGER,
+  task_id INTEGER,
+  PRIMARY KEY (timer_id, task_id),
+  FOREIGN KEY (timer_id) REFERENCES timers (id) ON DELETE CASCADE,
   FOREIGN KEY (task_id) REFERENCES tasks (id)
 )";
 
@@ -71,6 +90,12 @@ const POMODOROS: &str = "CREATE TABLE IF NOT EXISTS pomodoros (
   started_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   finished_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   FOREIGN KEY (task_id) REFERENCES tasks (id)
+)";
+
+const BREAKS: &str = "CREATE TABLE IF NOT EXISTS breaks (
+  id INTEGER PRIMARY KEY,
+  started_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  finished_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 )";
 
 const INTERRUPTIONS: &str = "CREATE TABLE IF NOT EXISTS interruptions (
@@ -98,17 +123,21 @@ const TAGGED_TASKS: &str = "CREATE TABLE IF NOT EXISTS tagged_tasks (
   FOREIGN KEY (task_id) REFERENCES tasks (id)
 )";
 
-pub const STATEMENTS: [&str; 13] = [
+pub const STATEMENTS: [&str; 17] = [
     LANES,
     LANES_INSERT,
     PRIORITIES,
     PRIORITIES_INSERT,
     TASKS,
-    CURRENT,
+    TIMER_TYPES,
+    TIMER_TYPES_INSERT,
+    TIMERS,
+    TIMER_TASKS,
     TODO,
     TODO_TASKS,
     ESTIMATES,
     POMODOROS,
+    BREAKS,
     INTERRUPTIONS,
     TAGS,
     TAGGED_TASKS,

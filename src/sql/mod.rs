@@ -1,14 +1,19 @@
 use crate::config::Config;
-use crate::core::current;
 use crate::core::lane;
 use crate::core::pomodoro;
 use crate::core::priority;
 use crate::core::task;
+use crate::core::timer;
 use crate::core::todo;
 use crate::core::Id;
 use anyhow::{Context, Result};
 use chrono::{DateTime, Duration, Utc};
-use rusqlite::{params, Connection, OptionalExtension, Result as SqlResult, Row, NO_PARAMS};
+use rusqlite::types::{ToSqlOutput, Value};
+use rusqlite::{
+    params, Connection, Error, OptionalExtension, Result as SqlResult, Row, ToSql, NO_PARAMS,
+};
+use std::convert::TryFrom;
+use timer::TimerType;
 
 pub mod ddl;
 
@@ -120,11 +125,11 @@ static FETCH_TASK_BY_ID: &str = "SELECT id, lane_id, priority, summary, estimate
 static FETCH_ALL_TASKS: &str = "SELECT id, lane_id, priority, summary, estimate, created_at, updated_at FROM tasks WHERE EXISTS (SELECT id FROM lanes WHERE name = ? AND lanes.id = tasks.lane_id) ORDER BY priority DESC";
 impl task::Fetch for Session {
     fn fetch_task_by_id(&mut self, id: Id) -> Result<Option<task::Task>> {
-        self.conn
-            .query_row_and_then(FETCH_TASK_BY_ID, params![id], |row| {
-                let t = row_to_task(row)?;
-                Ok(Some(t))
-            })
+        let t = self
+            .conn
+            .query_row(FETCH_TASK_BY_ID, params![id], row_to_task)
+            .optional()?;
+        Ok(t)
     }
     fn fetch_all_tasks(&mut self, lane_name: &str) -> Result<Vec<task::Task>> {
         let mut stmt = self.conn.prepare(FETCH_ALL_TASKS)?;
@@ -165,23 +170,74 @@ impl task::Mod for Session {
     }
 }
 
-fn row_to_current(row: &Row) -> SqlResult<current::Current> {
-    Ok(current::Current {
+fn row_to_timer(row: &Row) -> SqlResult<timer::Timer> {
+    Ok(timer::Timer {
         id: row.get(0)?,
-        task_id: row.get(1)?,
-        started_at: row.get(2)?,
-        duration_min: row.get(3)?,
+        timer_type: {
+            let int_val: u8 = row.get(1)?;
+            let v = TimerType::try_from(int_val);
+            v.map_err(|e| {
+                Error::FromSqlConversionFailure(8, rusqlite::types::Type::Integer, Box::new(e))
+            })?
+        },
+        label: row.get(2)?,
+        started_at: row.get(3)?,
+        duration_min: row.get(4)?,
     })
 }
-static START: &str = "INSERT INTO current(id, task_id, duration_min) VALUES (0, ?, ?)";
-static COMPLETE: &str = "DELETE FROM current WHERE id = 0";
-static GET_CURRENT: &str = "SELECT id, task_id, started_at, duration_min FROM current WHERE id = 0";
-impl current::Lifecycle for Session {
-    fn start(&mut self, task_id: Id, duration_min: i64) -> Result<current::Current> {
-        self.conn.execute(START, params![task_id, duration_min])?;
-        let c = self
+
+impl ToSql for timer::TimerType {
+    fn to_sql(&self) -> rusqlite::Result<ToSqlOutput> {
+        Ok(ToSqlOutput::Owned(Value::Integer(*self as i64)))
+    }
+}
+
+static INSERT_TIMER_TASK: &str = "INSERT INTO timer_tasks(timer_id, task_id) VALUES (0, ?)";
+static DELETE_TIMER_TASK: &str = "DELETE FROM timer_tasks WHERE timer_id = 0";
+static GET_TIMER_TASK: &str = "SELECT timer_id, task_id FROM timer_tasks WHERE id = 0";
+impl timer::TimerTaskAdd for Session {
+    fn add_timer_task(&mut self, task_id: &Id) -> Result<()> {
+        self.conn.execute(INSERT_TIMER_TASK, params![task_id])?;
+        Ok(())
+    }
+}
+
+impl timer::TimerTaskRemove for Session {
+    fn remove_timer_task(&mut self) -> Result<()> {
+        self.conn.execute(DELETE_TIMER_TASK, NO_PARAMS)?;
+        Ok(())
+    }
+}
+
+impl timer::TimerTaskGet for Session {
+    fn get_timer_task(&mut self) -> Result<Option<timer::TimerTask>> {
+        let timer_task = self
             .conn
-            .query_row(GET_CURRENT, NO_PARAMS, row_to_current)?;
+            .query_row(GET_TIMER_TASK, NO_PARAMS, |row| {
+                Ok(timer::TimerTask {
+                    timer_id: row.get(0)?,
+                    task_id: row.get(1)?,
+                })
+            })
+            .optional()?;
+        Ok(timer_task)
+    }
+}
+
+static START: &str = "INSERT INTO timers(id, timer_type, label, duration_min) VALUES (0, ?, ?, ?)";
+static COMPLETE: &str = "DELETE FROM timers WHERE id = 0";
+static GET_TIMER: &str =
+    "SELECT id, timer_type, label, started_at, duration_min FROM timers WHERE id = 0";
+impl timer::Lifecycle for Session {
+    fn start(
+        &mut self,
+        timer_type: &timer::TimerType,
+        label: &str,
+        duration_min: i64,
+    ) -> Result<timer::Timer> {
+        self.conn
+            .execute(START, params![timer_type, label, duration_min])?;
+        let c = self.conn.query_row(GET_TIMER, NO_PARAMS, row_to_timer)?;
         Ok(c)
     }
     fn complete(&mut self) -> Result<()> {
@@ -190,11 +246,11 @@ impl current::Lifecycle for Session {
     }
 }
 
-impl current::Get for Session {
-    fn get(&mut self) -> Result<Option<current::Current>> {
+impl timer::Get for Session {
+    fn get(&mut self) -> Result<Option<timer::Timer>> {
         let c = self
             .conn
-            .query_row(GET_CURRENT, NO_PARAMS, row_to_current)
+            .query_row(GET_TIMER, NO_PARAMS, row_to_timer)
             .optional()?;
         Ok(c)
     }
@@ -334,6 +390,7 @@ mod tests {
     use super::lane::Fetch as LaneFetch;
     use super::priority::Fetch as PriorityFetch;
     use super::task::{Add, Fetch as TaskFetch, Mod as TaskMod};
+    use super::timer;
     use super::todo;
     use super::Session;
     use crate::core::Id;
@@ -508,5 +565,40 @@ mod tests {
         assert_eq!(ts[0].estimate, 3);
         assert_eq!(ts[0].actual, 1);
         assert_eq!(ts[0].summary, "test1");
+    }
+
+    #[test]
+    fn test_take_break() {
+        let duration_min = 5;
+        let mut session = get_initialized_session();
+        let _ = timer::take_break(&mut session, &timer::TimerType::ShortBreak, duration_min)
+            .expect("failed to create short break");
+        let created_timer = timer::get_current_timer(&mut session)
+            .expect("failed to fetch short break timer")
+            .expect("short break timer not found");
+        assert_eq!(created_timer.id, 0);
+        assert_eq!(created_timer.timer_type, timer::TimerType::ShortBreak);
+        assert_eq!(created_timer.duration_min, duration_min);
+        assert_eq!(created_timer.label, "short break");
+    }
+
+    #[test]
+    fn test_start_pomodoro() {
+        let summary = "test1";
+        let duration_min = 5;
+        let first_task_id = 1;
+        let mut session = get_initialized_session();
+        let _ = session
+            .add_task(1, 0, summary, 3)
+            .expect("adding task test1 should not failed");
+        let _ = timer::pomodoro(&mut session, first_task_id, duration_min)
+            .expect("failed to create pomodoro");
+        let created_timer = timer::get_current_timer(&mut session)
+            .expect("failed to fetch pomodoro timer")
+            .expect("pomodoro timer not found");
+        assert_eq!(created_timer.id, 0);
+        assert_eq!(created_timer.timer_type, timer::TimerType::Pomodoro);
+        assert_eq!(created_timer.duration_min, duration_min);
+        assert_eq!(created_timer.label, summary);
     }
 }

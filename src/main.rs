@@ -1,10 +1,10 @@
 extern crate clap;
 use crate::cli::TaskContext;
-use crate::core::current;
+use crate::core::timer;
 use crate::core::Id;
 use anyhow::{bail, Result};
 use chrono::{NaiveDate, Utc};
-use clap::{App, Arg, SubCommand};
+use clap::{arg_enum, value_t, App, Arg, SubCommand};
 use std::convert::TryFrom;
 
 mod cli;
@@ -14,14 +14,22 @@ mod public;
 mod sql;
 mod web;
 
+arg_enum! {
+    #[derive(Debug)]
+    pub enum Break {
+        Short,
+        Long,
+    }
+}
+
 struct CleanupCurrent {
     session: sql::Session,
-    current: current::Current,
+    timer: timer::Timer,
 }
 
 impl Drop for CleanupCurrent {
     fn drop(&mut self) {
-        let _ = crate::core::current::complete(&mut self.session, &self.current);
+        let _ = crate::core::timer::complete(&mut self.session, &self.timer);
     }
 }
 
@@ -36,14 +44,33 @@ fn parse_or_today(input: Option<&str>) -> Result<NaiveDate> {
 }
 
 fn start_pomodoro(conf: &config::Config, task_id: Id, duration_min: i64) -> Result<()> {
-    let current: Result<current::Current> = {
+    let timer: Result<timer::Timer> = {
         let mut session = sql::Session::connect(conf)?;
-        crate::core::current::start(&mut session, task_id, duration_min)
+        crate::core::timer::pomodoro(&mut session, task_id, duration_min)
     };
     let session = sql::Session::connect(conf)?;
     let mut _cleanup = CleanupCurrent {
         session,
-        current: current?,
+        timer: timer?,
+    };
+    let duration_sec: u64 = u64::try_from(duration_min * 60).expect("failed to cast i64 to u64");
+    std::thread::sleep(std::time::Duration::from_secs(duration_sec));
+    Ok(())
+}
+
+fn start_break(conf: &config::Config, break_type: Break) -> Result<()> {
+    let (timer_type, duration_min) = match break_type {
+        Break::Short => (core::timer::TimerType::ShortBreak, conf.short_break),
+        Break::Long => (core::timer::TimerType::LongBreak, conf.long_break),
+    };
+    let timer: Result<timer::Timer> = {
+        let mut session = sql::Session::connect(conf)?;
+        crate::core::timer::take_break(&mut session, &timer_type, duration_min)
+    };
+    let session = sql::Session::connect(conf)?;
+    let mut _cleanup = CleanupCurrent {
+        session,
+        timer: timer?,
     };
     let duration_sec: u64 = u64::try_from(duration_min * 60).expect("failed to cast i64 to u64");
     std::thread::sleep(std::time::Duration::from_secs(duration_sec));
@@ -72,6 +99,14 @@ async fn main() -> Result<()> {
                 .takes_value(true)
                 .required(false),
         );
+    let take_break = SubCommand::with_name("break").about("take a break").arg(
+        Arg::with_name("type")
+            .long("type")
+            .short("t")
+            .value_name("TYPE")
+            .takes_value(true)
+            .required(false),
+    );
     let task_list = SubCommand::with_name("ls").about("list tasks").arg(
         Arg::with_name("lane")
             .long("lane")
@@ -211,6 +246,7 @@ async fn main() -> Result<()> {
         .subcommand(init)
         .subcommand(server)
         .subcommand(start)
+        .subcommand(take_break)
         .subcommand(task)
         .subcommand(todo)
         .get_matches();
@@ -238,6 +274,10 @@ async fn main() -> Result<()> {
                 .parse::<i64>()
                 .expect("duration should be integer");
             start_pomodoro(&conf, task_id, duration_min)
+        }
+        ("break", Some(break_m)) => {
+            let break_type = value_t!(break_m, "type", Break).unwrap_or_else(|e| e.exit());
+            start_break(&conf, break_type)
         }
         ("task", Some(task_m)) => match task_m.subcommand() {
             ("ls", task_ls_m) => {

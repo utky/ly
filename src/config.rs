@@ -1,4 +1,5 @@
 use anyhow::Result;
+use chrono::FixedOffset;
 use std::env;
 use std::path::PathBuf;
 
@@ -7,6 +8,7 @@ pub struct Config {
     pub database: PathBuf,
     pub short_break: i64,
     pub long_break: i64,
+    pub timezone: FixedOffset,
 }
 
 impl Config {
@@ -16,6 +18,7 @@ impl Config {
             database: PathBuf::from(format!("{}/.ly.db", home)),
             short_break: 5,
             long_break: 15,
+            timezone: FixedOffset::east(9 * 3600),
         })
     }
 }

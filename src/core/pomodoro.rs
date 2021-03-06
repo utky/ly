@@ -18,8 +18,3 @@ pub trait Complete {
 pub trait Fetch {
     fn fetch_by_task_id(&mut self, task_id: Id) -> Result<Vec<Pomodoro>>;
 }
-
-//
-// pub fn fetch_by_task_id<R>(r: &mut R, task_id: Id) -> Result<Vec<Pomodoro>> where R: Fetch {
-//   r.fetch_by_task_id(task_id)
-// }

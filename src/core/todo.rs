@@ -1,17 +1,21 @@
 use super::common::Id;
 use anyhow::Result;
-use chrono::NaiveDate;
-use chrono::{serde::ts_milliseconds, Datelike};
-use chrono::{DateTime, FixedOffset, TimeZone, Utc};
+use chrono::serde::ts_milliseconds;
+use chrono::{DateTime, Datelike, TimeZone, Utc};
 use serde::{Deserialize, Serialize};
 
-pub type TodoDate = NaiveDate;
+//pub type TodoDate = NaiveDate;
+pub type TodoDate = DateTime<Utc>;
 
-pub fn timestamp_at_start_of_todo_date(date: &TodoDate) -> DateTime<Utc> {
-    FixedOffset::east(9 * 3600)
-        .ymd(date.year(), date.month(), date.day())
+/// Returns timestamp of start of day in specified timezone from specified time point in (maybe) other timezone.
+pub fn start_of_day_in_tz<FromZone: TimeZone, ToZone: TimeZone>(
+    ts: DateTime<FromZone>,
+    timezone: &ToZone,
+) -> DateTime<ToZone> {
+    let now_tz = ts.with_timezone(timezone);
+    timezone
+        .ymd(now_tz.year(), now_tz.month(), now_tz.day())
         .and_hms(0, 0, 0)
-        .with_timezone(&Utc)
 }
 
 /// Task to be done.
@@ -82,13 +86,16 @@ where
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use chrono::{FixedOffset, TimeZone, Utc};
+
     #[test]
-    fn test_timestamp_at_start_of_date_in_jst() {
-        let jst_date = NaiveDate::from_ymd(2020, 02, 29);
+    fn test_start_of_day_in_tz() {
+        let jst = FixedOffset::east(9 * 3600);
+        let timestamp_utc = Utc.ymd(2021, 3, 6).and_hms(23, 10, 33);
+        let start_of_day = super::start_of_day_in_tz(timestamp_utc, &jst);
         assert_eq!(
-            timestamp_at_start_of_todo_date(&jst_date).timestamp(),
-            1582902000
+            start_of_day.format("%Y-%m-%d %H:%M:%S").to_string(),
+            "2021-03-07 00:00:00"
         );
     }
 }

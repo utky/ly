@@ -194,7 +194,7 @@ impl ToSql for timer::TimerType {
 
 static INSERT_TIMER_TASK: &str = "INSERT INTO timer_tasks(timer_id, task_id) VALUES (0, ?)";
 static DELETE_TIMER_TASK: &str = "DELETE FROM timer_tasks WHERE timer_id = 0";
-static GET_TIMER_TASK: &str = "SELECT timer_id, task_id FROM timer_tasks WHERE id = 0";
+static GET_TIMER_TASK: &str = "SELECT timer_id, task_id FROM timer_tasks WHERE timer_id = 0";
 impl timer::TimerTaskAdd for Session {
     fn add_timer_task(&mut self, task_id: &Id) -> Result<()> {
         self.conn.execute(INSERT_TIMER_TASK, params![task_id])?;
@@ -348,7 +348,7 @@ impl todo::Fetch for Session {
         Ok(result)
     }
     fn fetch_todo_tasks(&mut self, date: &todo::TodoDate) -> Result<Vec<todo::TodoTask>> {
-        let start_time = todo::timestamp_at_start_of_todo_date(date);
+        let start_time = *date;
         let end_time = start_time + Duration::days(1);
         let mut stmt = self.conn.prepare(FETCH_TODO_TASKS)?;
         let rows = stmt.query_map(params![start_time, end_time, date], |r| row_to_todo_task(r))?;
@@ -395,7 +395,7 @@ mod tests {
     use super::Session;
     use crate::core::Id;
     use anyhow::Result;
-    use chrono::{DateTime, Datelike, NaiveDate, Utc};
+    use chrono::{DateTime, TimeZone, Utc};
     use rusqlite::Connection;
 
     fn connect_memory() -> Result<Session> {
@@ -511,7 +511,7 @@ mod tests {
         let _ = session
             .add_task(1, 0, "test1", 3)
             .expect("adding task test1 should not failed");
-        let d = NaiveDate::from_ymd(2015, 3, 14);
+        let d = Utc.ymd(2015, 3, 14).and_hms(0, 0, 0);
         let a = vec![first_task_id];
         let r = Vec::new();
         let _ = todo::mod_todo(&mut session, &d, &a, &r).expect("failed to insert todo_task");
@@ -529,7 +529,7 @@ mod tests {
         let _ = session
             .add_task(1, 0, "test1", 3)
             .expect("adding task test1 should not failed");
-        let d = NaiveDate::from_ymd(2015, 3, 14);
+        let d = Utc.ymd(2015, 3, 14).and_hms(0, 0, 0);
         let include_task = vec![first_task_id];
         let empty = Vec::new();
         let _ = todo::mod_todo(&mut session, &d, &include_task, &empty)
@@ -546,6 +546,29 @@ mod tests {
     {
         r.complete_pomodoro(task_id, started_at)
     }
+
+    fn fetch_by_task_id<R>(r: &mut R, task_id: Id) -> Result<Vec<pomodoro::Pomodoro>>
+    where
+        R: pomodoro::Fetch,
+    {
+        r.fetch_by_task_id(task_id)
+    }
+
+    #[test]
+    fn test_fetch_pomodoro_by_task_id() {
+        let first_task_id = 1;
+        let mut session = get_initialized_session();
+        let _ = session
+            .add_task(1, 0, "test1", 3)
+            .expect("adding task test1 should not failed");
+        let now = Utc::now();
+        complete_pomodoro(&mut session, first_task_id, now).expect("failed to complate task");
+        let pomodoros =
+            fetch_by_task_id(&mut session, first_task_id).expect("failed fetch pomodoros");
+        assert_eq!(pomodoros.len(), 1, "count of pomodoro");
+        assert_eq!(pomodoros[0].task_id, first_task_id, "task_od");
+        assert_eq!(pomodoros[0].started_at, now, "started_at");
+    }
     #[test]
     fn test_fetch_todo_task_with_pomodoro() {
         let first_task_id = 1;
@@ -553,18 +576,19 @@ mod tests {
         let _ = session
             .add_task(1, 0, "test1", 3)
             .expect("adding task test1 should not failed");
-        let today_utc = Utc::today();
-        let d = NaiveDate::from_ymd(today_utc.year(), today_utc.month(), today_utc.day());
+        let d = Utc.ymd(2015, 3, 14).and_hms(0, 0, 0);
         let a = vec![first_task_id];
         let r = Vec::new();
         let _ = todo::mod_todo(&mut session, &d, &a, &r).expect("failed to insert todo_task");
-        complete_pomodoro(&mut session, first_task_id, Utc::now())
-            .expect("failed to complate task");
+
+        let started = Utc.ymd(2015, 3, 14).and_hms(1, 0, 0);
+        complete_pomodoro(&mut session, first_task_id, started).expect("failed to complate task");
+
         let ts = todo::list_todo_tasks(&mut session, &d).expect("failed to fetch todo_tasks");
-        assert_eq!(ts[0].priority, 0);
-        assert_eq!(ts[0].estimate, 3);
-        assert_eq!(ts[0].actual, 1);
-        assert_eq!(ts[0].summary, "test1");
+        assert_eq!(ts[0].priority, 0, "priority");
+        assert_eq!(ts[0].estimate, 3, "estimate");
+        assert_eq!(ts[0].summary, "test1", "summary");
+        assert_eq!(ts[0].actual, 1, "actual");
     }
 
     #[test]

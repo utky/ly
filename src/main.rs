@@ -1,9 +1,11 @@
+#[macro_use]
+extern crate log;
 extern crate clap;
 use crate::cli::TaskContext;
 use crate::core::timer;
 use crate::core::Id;
 use anyhow::{bail, Result};
-use chrono::{NaiveDate, Utc};
+use chrono::{DateTime, TimeZone, Utc};
 use clap::{arg_enum, value_t, App, Arg, SubCommand};
 use std::convert::TryFrom;
 
@@ -13,6 +15,8 @@ mod core;
 mod public;
 mod sql;
 mod web;
+
+const VERSION: &str = env!("CARGO_PKG_VERSION");
 
 arg_enum! {
     #[derive(Debug)]
@@ -30,16 +34,17 @@ struct CleanupCurrent {
 impl Drop for CleanupCurrent {
     fn drop(&mut self) {
         let _ = crate::core::timer::complete(&mut self.session, &self.timer);
+        debug!("completed timer started_at: {}", &self.timer.started_at);
     }
 }
 
-fn parse_or_today(input: Option<&str>) -> Result<NaiveDate> {
+fn parse_or_today(conf: &config::Config, input: Option<&str>) -> Result<DateTime<Utc>> {
     match input {
         Some(input) => {
-            let parsed = NaiveDate::parse_from_str(input, "%Y-%m-%d")?;
-            Ok(parsed)
+            let parsed = conf.timezone.datetime_from_str(input, "%Y-%m-%d")?;
+            Ok(parsed.with_timezone(&Utc))
         }
-        None => Ok(Utc::today().naive_utc()),
+        None => Ok(core::todo::start_of_day_in_tz(Utc::now(), &conf.timezone).with_timezone(&Utc)),
     }
 }
 
@@ -54,7 +59,9 @@ fn start_pomodoro(conf: &config::Config, task_id: Id, duration_min: i64) -> Resu
         timer: timer?,
     };
     let duration_sec: u64 = u64::try_from(duration_min * 60).expect("failed to cast i64 to u64");
+    debug!("starting to sleep: {}", duration_sec);
     std::thread::sleep(std::time::Duration::from_secs(duration_sec));
+    debug!("sleep finished");
     Ok(())
 }
 
@@ -79,6 +86,7 @@ fn start_break(conf: &config::Config, break_type: Break) -> Result<()> {
 
 #[tokio::main]
 async fn main() -> Result<()> {
+    env_logger::init();
     let init = SubCommand::with_name("init").about("initialize database");
     let server = SubCommand::with_name("server").about("start server");
     let start = SubCommand::with_name("start")
@@ -240,7 +248,7 @@ async fn main() -> Result<()> {
         .subcommand(todo_list)
         .subcommand(todo_mod);
     let matches = App::new("ly")
-        .version("1.0")
+        .version(VERSION)
         .author("Yutaka Imamura")
         .about("Pomodoro time tracker")
         .subcommand(init)
@@ -335,7 +343,7 @@ async fn main() -> Result<()> {
         ("todo", Some(todo_m)) => match todo_m.subcommand() {
             ("ls", Some(todo_ls_m)) => {
                 let mut session = sql::Session::connect(&conf)?;
-                let date = parse_or_today(todo_ls_m.value_of("date"))?;
+                let date = parse_or_today(&conf, todo_ls_m.value_of("date"))?;
                 let tasks = core::todo::list_todo_tasks(&mut session, &date)?;
 
                 let estimate = tasks.iter().fold(0, |s, t| s + t.estimate);
@@ -343,7 +351,10 @@ async fn main() -> Result<()> {
                 let remaining = estimate - actual;
                 println!(
                     "date:{}\testimate:{}\tactual:{}\tremaining:{}",
-                    date, estimate, actual, remaining
+                    date.with_timezone(&conf.timezone).format("%Y-%m-%d"),
+                    estimate,
+                    actual,
+                    remaining
                 );
 
                 let lanes = core::lane::fetch_all_lanes(&mut session)?;
@@ -356,7 +367,7 @@ async fn main() -> Result<()> {
             }
             ("mod", Some(plan_mod_m)) => {
                 let mut session = sql::Session::connect(&conf)?;
-                let date = parse_or_today(plan_mod_m.value_of("date"))?;
+                let date = parse_or_today(&conf, plan_mod_m.value_of("date"))?;
                 let added: Vec<Id> = plan_mod_m
                     .values_of("add")
                     .unwrap_or_default()
@@ -368,7 +379,7 @@ async fn main() -> Result<()> {
                     .map(|s| s.parse::<i64>().expect("estimate should be integer"))
                     .collect();
                 core::todo::mod_todo(&mut session, &date, &added, &removed)?;
-                println!("{}", date);
+                println!("{}", date.with_timezone(&conf.timezone).format("%Y-%m-%d"));
                 Ok(())
             }
             _ => bail!("invalid options"),

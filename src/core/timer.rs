@@ -127,21 +127,36 @@ pub fn complete<R>(r: &mut R, timer: &Timer) -> Result<()>
 where
     R: Lifecycle + TimerTaskRemove + TimerTaskGet + task::Fetch + pomodoro::Complete,
 {
+    info!("compeling timer type: {:?}", timer.timer_type);
     match timer.timer_type {
-        TimerType::ShortBreak => {}
-        TimerType::LongBreak => {}
+        TimerType::ShortBreak => {
+            debug!("completing short break");
+        }
+        TimerType::LongBreak => {
+            debug!("completing long break");
+        }
         TimerType::Pomodoro => match r.get_timer_task()? {
             Some(timer_task) => {
+                info!(
+                    "current timer_task found: {} {}",
+                    timer_task.timer_id, timer_task.task_id
+                );
                 let task = r
                     .fetch_task_by_id(timer_task.task_id)?
                     .ok_or(RepositoryError::NotFound)?;
+                debug!("fetched task in pomodoro: {} {}", task.id, task.summary);
+                info!("fetched timer_task");
                 r.complete_pomodoro(task.id, timer.started_at)?;
+                debug!("completed pomodoro: {} {}", task.id, timer.started_at);
             }
             None => bail!("timer_task was not found"),
         },
     };
     r.remove_timer_task()?;
-    r.complete()
+    debug!("removing timer task");
+    let result = r.complete();
+    debug!("complete timer");
+    result
 }
 
 pub fn get_current_timer<R>(r: &mut R) -> Result<Option<Timer>>

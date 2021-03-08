@@ -12,6 +12,7 @@ pub struct Pomodoro {
 }
 
 pub trait Complete {
+    // TODO: add finished_at to create pomodoro manually
     fn complete_pomodoro(&mut self, task_id: Id, started_at: DateTime<Utc>) -> Result<()>;
 }
 

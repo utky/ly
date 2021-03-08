@@ -23,11 +23,16 @@ fn get_initialized_session() -> Session {
     session
 }
 
-fn fetch_first_created_task(mut session: Session) -> Result<Task> {
+fn fetch_first_created_task(session: &mut Session) -> Result<Task> {
     let task = session
         .fetch_task_by_id(1)?
         .expect("Could not found task by id 1");
     Ok(task)
+}
+
+fn add_test_task(session: &mut Session) -> Result<()> {
+    let _ = session.add_task(1, 0, TASK_SUMMARY, 3)?;
+    Ok(())
 }
 
 #[test]
@@ -43,19 +48,19 @@ fn test_fetch_lane() -> Result<()> {
 #[test]
 fn test_insert_fetch_task_by_id() -> Result<()> {
     let mut session = get_initialized_session();
-    let _ = session.add_task(2, 0, TASK_SUMMARY, 1)?;
-    let t = fetch_first_created_task(session)?;
-    assert_eq!(t.lane_id, 2);
+    add_test_task(&mut session)?;
+    let t = fetch_first_created_task(&mut session)?;
+    assert_eq!(t.lane_id, 1);
     assert_eq!(t.priority, 0);
     assert_eq!(t.summary, TASK_SUMMARY);
-    assert_eq!(t.estimate, 1);
+    assert_eq!(t.estimate, 3);
     Ok(())
 }
 
 #[test]
 fn test_insert_fetch_all_tasks() -> Result<()> {
     let mut session = get_initialized_session();
-    let _ = session.add_task(1, 0, TASK_SUMMARY, 2)?;
+    add_test_task(&mut session)?;
     let _ = session.add_task(1, 1, "test2", 3)?;
     let backlog = session.fetch_all_tasks("backlog")?;
 
@@ -67,7 +72,7 @@ fn test_insert_fetch_all_tasks() -> Result<()> {
     assert_eq!(backlog[1].lane_id, 1);
     assert_eq!(backlog[1].priority, 0);
     assert_eq!(backlog[1].summary, TASK_SUMMARY);
-    assert_eq!(backlog[1].estimate, 2);
+    assert_eq!(backlog[1].estimate, 3);
     let todo = session.fetch_all_tasks("todo")?;
     assert_eq!(todo.len(), 0);
     Ok(())
@@ -84,9 +89,9 @@ fn test_fetch_priority() -> Result<()> {
 #[test]
 fn test_mod_task_move_lane() -> Result<()> {
     let mut session = get_initialized_session();
-    let _ = session.add_task(1, 0, TASK_SUMMARY, 2);
+    add_test_task(&mut session)?;
     let _ = session.mod_task(1, Some(&2), None, None, None);
-    let t = fetch_first_created_task(session)?;
+    let t = fetch_first_created_task(&mut session)?;
     assert_eq!(t.lane_id, 2);
     Ok(())
 }
@@ -94,9 +99,9 @@ fn test_mod_task_move_lane() -> Result<()> {
 #[test]
 fn test_mod_task_higher_priority_and_new_summary() -> Result<()> {
     let mut session = get_initialized_session();
-    let _ = session.add_task(1, 0, TASK_SUMMARY, 3)?;
+    add_test_task(&mut session)?;
     let _ = session.mod_task(1, None, Some(&3), Some("test1 new"), None)?;
-    let t = fetch_first_created_task(session)?;
+    let t = fetch_first_created_task(&mut session)?;
     assert_eq!(t.priority, 3);
     assert_eq!(t.summary, "test1 new");
     Ok(())
@@ -106,7 +111,7 @@ fn test_mod_task_higher_priority_and_new_summary() -> Result<()> {
 fn test_mod_plan_add_task() -> Result<()> {
     let first_task_id = 1;
     let mut session = get_initialized_session();
-    let _ = session.add_task(1, 0, TASK_SUMMARY, 3)?;
+    add_test_task(&mut session)?;
     let d = Utc.ymd(2015, 3, 14).and_hms(0, 0, 0);
     let a = vec![first_task_id];
     let r = Vec::new();
@@ -123,7 +128,7 @@ fn test_mod_plan_add_task() -> Result<()> {
 fn test_mod_plan_remove_task() -> Result<()> {
     let first_task_id = 1;
     let mut session = get_initialized_session();
-    let _ = session.add_task(1, 0, TASK_SUMMARY, 3)?;
+    add_test_task(&mut session)?;
     let d = Utc.ymd(2015, 3, 14).and_hms(0, 0, 0);
     let include_task = vec![first_task_id];
     let empty = Vec::new();
@@ -152,7 +157,7 @@ where
 fn test_fetch_pomodoro_by_task_id() -> Result<()> {
     let first_task_id = 1;
     let mut session = get_initialized_session();
-    let _ = session.add_task(1, 0, TASK_SUMMARY, 3)?;
+    add_test_task(&mut session)?;
     let now = Utc::now();
     complete_pomodoro(&mut session, first_task_id, now)?;
     let pomodoros = fetch_by_task_id(&mut session, first_task_id)?;
@@ -165,7 +170,7 @@ fn test_fetch_pomodoro_by_task_id() -> Result<()> {
 fn test_fetch_todo_task_with_pomodoro() -> Result<()> {
     let first_task_id = 1;
     let mut session = get_initialized_session();
-    let _ = session.add_task(1, 0, TASK_SUMMARY, 3)?;
+    add_test_task(&mut session)?;
     let d = Utc.ymd(2015, 3, 14).and_hms(0, 0, 0);
     let a = vec![first_task_id];
     let r = Vec::new();
@@ -175,6 +180,7 @@ fn test_fetch_todo_task_with_pomodoro() -> Result<()> {
     complete_pomodoro(&mut session, first_task_id, started)?;
 
     let ts = todo::list_todo_tasks(&mut session, &d)?;
+    assert_eq!(ts.len(), 1);
     assert_eq!(ts[0].priority, 0, "priority");
     assert_eq!(ts[0].estimate, 3, "estimate");
     assert_eq!(ts[0].summary, TASK_SUMMARY, "summary");
@@ -201,7 +207,7 @@ fn test_start_pomodoro() -> Result<()> {
     let duration_min = 5;
     let first_task_id = 1;
     let mut session = get_initialized_session();
-    let _ = session.add_task(1, 0, TASK_SUMMARY, 3)?;
+    add_test_task(&mut session)?;
     let _ = timer::pomodoro(&mut session, first_task_id, duration_min)?;
     let created_timer = timer::get_current_timer(&mut session)?.expect("pomodoro timer not found");
     assert_eq!(created_timer.id, 0);

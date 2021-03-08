@@ -264,6 +264,7 @@ fn row_to_pomodoro(row: &Row) -> SqlResult<pomodoro::Pomodoro> {
         finished_at: row.get(3)?,
     })
 }
+
 static ADD_POMODORO: &str = "INSERT INTO pomodoros(task_id, started_at) VALUES (?, ?)";
 impl pomodoro::Complete for Session {
     fn complete_pomodoro(&mut self, task_id: Id, started_at: DateTime<Utc>) -> Result<()> {

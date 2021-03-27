@@ -5,7 +5,7 @@ use crate::cli::TaskContext;
 use crate::core::timer;
 use crate::core::Id;
 use anyhow::{bail, Result};
-use chrono::{DateTime, TimeZone, Utc, FixedOffset};
+use chrono::{DateTime, FixedOffset, TimeZone, Utc};
 use clap::{arg_enum, value_t, App, Arg, SubCommand};
 use std::convert::TryFrom;
 
@@ -36,6 +36,25 @@ impl Drop for CleanupCurrent {
         let _ = crate::core::timer::complete(&mut self.session, &self.timer);
         debug!("completed timer started_at: {}", &self.timer.started_at);
     }
+}
+
+fn parse_line_as_task_ids<F>(input: F) -> Result<Vec<Id>>
+where
+    F: std::io::BufRead,
+{
+    let mut ids: Vec<Id> = Vec::new();
+    for line in input.lines() {
+        let l = line?;
+        if l.starts_with('#') {
+            debug!("skip line starts with hash: {:?}", l);
+            continue;
+        } else if let Some(id_str) = l.split('\t').next() {
+            debug!("read as task_id {:?}", id_str);
+            let id_int = id_str.parse::<i64>()?;
+            ids.push(id_int);
+        }
+    }
+    Ok(ids)
 }
 
 fn parse_or_today(timezone: &FixedOffset, input: Option<&str>) -> Result<DateTime<Utc>> {
@@ -245,10 +264,19 @@ async fn main() -> Result<()> {
                 .multiple(true)
                 .number_of_values(1),
         );
+    let todo_load = SubCommand::with_name("load").about("load todo task").arg(
+        Arg::with_name("date")
+            .long("date")
+            .short("d")
+            .value_name("YYYY-MM-DD")
+            .takes_value(true)
+            .required(false),
+    );
     let todo = SubCommand::with_name("todo")
         .about("todo related operations")
         .subcommand(todo_list)
-        .subcommand(todo_mod);
+        .subcommand(todo_mod)
+        .subcommand(todo_load);
     let matches = App::new("ly")
         .version(VERSION)
         .author("Yutaka Imamura")
@@ -352,7 +380,7 @@ async fn main() -> Result<()> {
                 let actual = tasks.iter().fold(0, |s, t| s + t.actual);
                 let remaining = estimate - actual;
                 println!(
-                    "date:{}\testimate:{}\tactual:{}\tremaining:{}",
+                    "#date:{}\testimate:{}\tactual:{}\tremaining:{}",
                     date.with_timezone(&conf.timezone).format("%Y-%m-%d"),
                     estimate,
                     actual,
@@ -384,6 +412,18 @@ async fn main() -> Result<()> {
                 println!("{}", date.with_timezone(&conf.timezone).format("%Y-%m-%d"));
                 Ok(())
             }
+            ("load", Some(todo_load_m)) => {
+                let mut session = sql::Session::connect(&conf)?;
+                let date = parse_or_today(&conf.timezone, todo_load_m.value_of("date"))?;
+                let stdin = std::io::stdin();
+                let stdin = stdin.lock();
+                let ids_to_load = parse_line_as_task_ids(stdin)?;
+                let empty_removed = Vec::new();
+                core::todo::clear_todo(&mut session, &date)?;
+                core::todo::mod_todo(&mut session, &date, &ids_to_load, &empty_removed)?;
+                println!("{}", date.with_timezone(&conf.timezone).format("%Y-%m-%d"));
+                Ok(())
+            }
             _ => bail!("invalid options"),
         },
         _ => bail!("invalid options"),
@@ -392,8 +432,8 @@ async fn main() -> Result<()> {
 
 #[cfg(test)]
 mod tests {
-    use anyhow::{Result};
-    use chrono::{DateTime, TimeZone, Utc, FixedOffset};
+    use anyhow::Result;
+    use chrono::{DateTime, FixedOffset, TimeZone, Utc};
     #[test]
     fn test_parse_or_today() -> Result<()> {
         let input = "2021-01-01";

@@ -85,6 +85,17 @@ where
     Ok(())
 }
 
+pub fn clear_todo<R>(r: &mut R, date: &TodoDate) -> Result<()>
+where
+    R: Fetch + Mod + Add,
+{
+    let tasks = r.fetch_todo_tasks(date)?;
+    for t in tasks {
+        r.remove_todo_task(date, &t.task_id)?;
+    }
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use chrono::{FixedOffset, TimeZone, Utc};

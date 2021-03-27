@@ -5,7 +5,7 @@ use crate::cli::TaskContext;
 use crate::core::timer;
 use crate::core::Id;
 use anyhow::{bail, Result};
-use chrono::{DateTime, TimeZone, Utc};
+use chrono::{DateTime, TimeZone, Utc, FixedOffset};
 use clap::{arg_enum, value_t, App, Arg, SubCommand};
 use std::convert::TryFrom;
 
@@ -38,13 +38,15 @@ impl Drop for CleanupCurrent {
     }
 }
 
-fn parse_or_today(conf: &config::Config, input: Option<&str>) -> Result<DateTime<Utc>> {
+fn parse_or_today(timezone: &FixedOffset, input: Option<&str>) -> Result<DateTime<Utc>> {
     match input {
         Some(input) => {
-            let parsed = conf.timezone.datetime_from_str(input, "%Y-%m-%d")?;
+            let mut dt = String::from(input);
+            dt.push_str("T00:00:00");
+            let parsed = timezone.datetime_from_str(&dt, "%Y-%m-%dT%H:%M:%S")?;
             Ok(parsed.with_timezone(&Utc))
         }
-        None => Ok(core::todo::start_of_day_in_tz(Utc::now(), &conf.timezone).with_timezone(&Utc)),
+        None => Ok(core::todo::start_of_day_in_tz(Utc::now(), timezone).with_timezone(&Utc)),
     }
 }
 
@@ -343,7 +345,7 @@ async fn main() -> Result<()> {
         ("todo", Some(todo_m)) => match todo_m.subcommand() {
             ("ls", Some(todo_ls_m)) => {
                 let mut session = sql::Session::connect(&conf)?;
-                let date = parse_or_today(&conf, todo_ls_m.value_of("date"))?;
+                let date = parse_or_today(&conf.timezone, todo_ls_m.value_of("date"))?;
                 let tasks = core::todo::list_todo_tasks(&mut session, &date)?;
 
                 let estimate = tasks.iter().fold(0, |s, t| s + t.estimate);
@@ -367,7 +369,7 @@ async fn main() -> Result<()> {
             }
             ("mod", Some(plan_mod_m)) => {
                 let mut session = sql::Session::connect(&conf)?;
-                let date = parse_or_today(&conf, plan_mod_m.value_of("date"))?;
+                let date = parse_or_today(&conf.timezone, plan_mod_m.value_of("date"))?;
                 let added: Vec<Id> = plan_mod_m
                     .values_of("add")
                     .unwrap_or_default()
@@ -385,5 +387,20 @@ async fn main() -> Result<()> {
             _ => bail!("invalid options"),
         },
         _ => bail!("invalid options"),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use anyhow::{Result};
+    use chrono::{DateTime, TimeZone, Utc, FixedOffset};
+    #[test]
+    fn test_parse_or_today() -> Result<()> {
+        let input = "2021-01-01";
+        let jst = FixedOffset::east(9 * 3600);
+        let parsed: DateTime<Utc> = super::parse_or_today(&jst, Some(input))?;
+        let expected = Utc.datetime_from_str("2020-12-31 15:00:00", "%Y-%m-%d %H:%M:%S")?;
+        assert_eq!(parsed, expected);
+        Ok(())
     }
 }

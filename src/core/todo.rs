@@ -59,6 +59,7 @@ pub fn list_todo_tasks<R>(r: &mut R, date: &TodoDate) -> Result<Vec<TodoTask>>
 where
     R: Fetch,
 {
+    debug!("list tasks on date {:?}", date);
     r.fetch_todo_tasks(date)
 }
 

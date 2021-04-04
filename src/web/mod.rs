@@ -28,6 +28,10 @@ async fn get_timer(conf: config::Config) -> Result<impl warp::Reply, warp::Rejec
     }
 }
 
+async fn fetch_pomodoros(conf: config::Config) -> Result<impl warp::Reply, warp::Rejection> {
+    let session = crate::sql::Session::connect(&conf)?;
+}
+
 pub async fn start_server(conf: config::Config) {
     let routes = path!("index.js")
         .map(|| {

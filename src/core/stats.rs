@@ -5,7 +5,7 @@ use serde::{Deserialize, Serialize};
 use chrono::serde::ts_milliseconds;
 
 #[derive(Debug, Serialize, Deserialize)]
-pub struct Pomodoro {
+pub struct DailyStats {
     pub id: Id,
     pub task_id: Id,
     #[serde(with = "ts_milliseconds")]
@@ -14,11 +14,6 @@ pub struct Pomodoro {
     pub finished_at: DateTime<Utc>,
 }
 
-pub trait Complete {
-    // TODO: add finished_at to create pomodoro manually
-    fn complete_pomodoro(&mut self, task_id: Id, started_at: DateTime<Utc>) -> Result<()>;
-}
-
 pub trait Fetch {
-    fn fetch_by_task_id(&mut self, task_id: Id) -> Result<Vec<Pomodoro>>;
+    fn fetch_pomodoro_daily_stats(&mut self, start: DateTime<Utc>, end: DateTime<Utc>) -> Result<Vec<Pomodoro>>;
 }

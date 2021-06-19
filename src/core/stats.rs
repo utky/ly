@@ -1,19 +1,26 @@
 use super::common::Id;
 use anyhow::Result;
+use chrono::serde::ts_milliseconds;
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
-use chrono::serde::ts_milliseconds;
 
 #[derive(Debug, Serialize, Deserialize)]
-pub struct DailyStats {
-    pub id: Id,
+pub struct SummaryRange {
+    #[serde(with = "ts_milliseconds")]
+    pub start: DateTime<Utc>,
+    #[serde(with = "ts_milliseconds")]
+    pub end: DateTime<Utc>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct DailySummary {
+    #[serde(with = "ts_milliseconds")]
+    pub date: DateTime<Utc>,
     pub task_id: Id,
-    #[serde(with = "ts_milliseconds")]
-    pub started_at: DateTime<Utc>,
-    #[serde(with = "ts_milliseconds")]
-    pub finished_at: DateTime<Utc>,
+    pub pomodoro_count: i64,
+    pub interruption_count: i64,
 }
 
 pub trait Fetch {
-    fn fetch_pomodoro_daily_stats(&mut self, start: DateTime<Utc>, end: DateTime<Utc>) -> Result<Vec<Pomodoro>>;
+    fn fetch_daily_summary(&mut self, range: &SummaryRange) -> Result<Vec<DailySummary>>;
 }

@@ -1,11 +1,14 @@
+use crate::core::stats::Fetch;
+
 use super::config;
+use super::core::stats;
 use super::core::timer;
 use super::public;
 use anyhow::Result;
 use warp::filters::path::end;
 use warp::http::Response;
 use warp::reply::{html, json};
-use warp::{path, Filter};
+use warp::{path, query, Filter};
 
 fn with_config(
     conf: config::Config,
@@ -28,8 +31,17 @@ async fn get_timer(conf: config::Config) -> Result<impl warp::Reply, warp::Rejec
     }
 }
 
-async fn fetch_pomodoros(conf: config::Config) -> Result<impl warp::Reply, warp::Rejection> {
-    let session = crate::sql::Session::connect(&conf)?;
+async fn fetch_daily_summary(
+    conf: config::Config,
+    range: stats::SummaryRange,
+) -> Result<impl warp::Reply, warp::Rejection> {
+    match crate::sql::Session::connect(&conf).and_then(|session| {
+        let mut s = session;
+        s.fetch_daily_summary(&range)
+    }) {
+        Ok(summaries) => Ok(json(&summaries)),
+        Err(_e) => Err(warp::reject()),
+    }
 }
 
 pub async fn start_server(conf: config::Config) {
@@ -48,6 +60,11 @@ pub async fn start_server(conf: config::Config) {
             .and(warp::get())
             .and(with_config(conf.clone()))
             .and_then(get_timer))
+        .or(path!("api" / "daily_stats")
+            .and(warp::get())
+            .and(with_config(conf.clone()))
+            .and(query::query())
+            .and_then(fetch_daily_summary))
         .or(end().map(|| html(public::index_html())));
     warp::serve(routes).run(([0, 0, 0, 0], 8081)).await;
 }

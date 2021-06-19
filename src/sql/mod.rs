@@ -2,6 +2,8 @@ use crate::config::Config;
 use crate::core::lane;
 use crate::core::pomodoro;
 use crate::core::priority;
+use crate::core::stats;
+use crate::core::stats::DailySummary;
 use crate::core::task;
 use crate::core::timer;
 use crate::core::todo;
@@ -381,6 +383,54 @@ impl todo::Mod for Session {
         self.conn
             .execute(DELETE_TODO_TASK, params![date, task_id])?;
         Ok(())
+    }
+}
+
+// TODO: timezone offset as parameters
+static FETCH_DAILY_SUMMARY: &str = "
+SELECT
+    datetime(date(time, '+09:00')),
+    task_id,
+    SUM(CASE WHEN item_type = 'task' THEN 1 ELSE 0 END) AS pomodoro_count,
+    SUM(CASE WHEN item_type = 'intr' THEN 1 ELSE 0 END) AS interruption_count 
+FROM (
+    SELECT
+        started_at AS time,
+        task_id,
+        'task' AS item_type
+    FROM
+        pomodoros
+    WHERE ? <= started_at AND started_at < ?
+    UNION ALL
+    SELECT
+        created_at AS time,
+        task_id,
+        'intr' AS item_type
+    FROM
+        interruptions
+    WHERE ? <= created_at AND created_at < ?
+) summary_items 
+GROUP BY datetime(date(time, '+09:00')), task_id";
+fn row_to_daily_summary(row: &Row) -> SqlResult<stats::DailySummary> {
+    Ok(stats::DailySummary {
+        date: row.get(0)?,
+        task_id: row.get(1)?,
+        pomodoro_count: row.get(2)?,
+        interruption_count: row.get(3)?,
+    })
+}
+impl stats::Fetch for Session {
+    fn fetch_daily_summary(&mut self, range: &stats::SummaryRange) -> Result<Vec<DailySummary>> {
+        let mut stmt = self.conn.prepare(FETCH_DAILY_SUMMARY)?;
+        let rows = stmt.query_map(
+            params![range.start, range.end, range.start, range.end],
+            |row| Ok(row_to_daily_summary(row)?),
+        )?;
+        let mut results = Vec::new();
+        for r in rows {
+            results.push(r?);
+        }
+        Ok(results)
     }
 }
 

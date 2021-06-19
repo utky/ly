@@ -1,8 +1,8 @@
 use super::common::Id;
 use anyhow::Result;
+use chrono::serde::ts_milliseconds;
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
-use chrono::serde::ts_milliseconds;
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Pomodoro {

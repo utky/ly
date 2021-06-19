@@ -1,10 +1,12 @@
 use super::lane::Fetch as LaneFetch;
 use super::priority::Fetch as PriorityFetch;
+use super::stats;
 use super::task::{Add, Fetch as TaskFetch, Mod as TaskMod, Task};
 use super::timer;
 use super::todo;
 use super::Session;
 use crate::core::pomodoro;
+use crate::core::stats::Fetch;
 use crate::core::Id;
 use anyhow::Result;
 use chrono::{DateTime, TimeZone, Utc};
@@ -214,5 +216,29 @@ fn test_start_pomodoro() -> Result<()> {
     assert_eq!(created_timer.timer_type, timer::TimerType::Pomodoro);
     assert_eq!(created_timer.duration_min, duration_min);
     assert_eq!(created_timer.label, TASK_SUMMARY);
+    Ok(())
+}
+
+#[test]
+fn test_fetch_daily_summary() -> Result<()> {
+    let first_task_id = 1;
+    let mut session = get_initialized_session();
+    add_test_task(&mut session)?;
+    let started = Utc.ymd(2015, 3, 14).and_hms(1, 0, 0);
+    complete_pomodoro(&mut session, first_task_id, started)?;
+    let range = stats::SummaryRange {
+        start: Utc.ymd(2015, 3, 14).and_hms(1, 0, 0),
+        end: Utc.ymd(2015, 3, 15).and_hms(1, 0, 0),
+    };
+    let summaries = session.fetch_daily_summary(&range)?;
+    assert_eq!(summaries.len(), 1);
+    assert_eq!(
+        summaries[0].date,
+        Utc.ymd(2015, 3, 14).and_hms(0, 0, 0),
+        "date"
+    );
+    assert_eq!(summaries[0].task_id, first_task_id, "task_id");
+    assert_eq!(summaries[0].pomodoro_count, 1, "pomodoro_count");
+    assert_eq!(summaries[0].interruption_count, 0, "interruption_count");
     Ok(())
 }

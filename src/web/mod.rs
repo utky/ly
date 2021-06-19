@@ -44,7 +44,7 @@ async fn fetch_daily_summary(
     }
 }
 
-pub async fn start_server(conf: config::Config) {
+pub async fn start_server(conf: config::Config, port: u16) {
     let routes = path!("index.js")
         .map(|| {
             Response::builder()
@@ -66,5 +66,5 @@ pub async fn start_server(conf: config::Config) {
             .and(query::query())
             .and_then(fetch_daily_summary))
         .or(end().map(|| html(public::index_html())));
-    warp::serve(routes).run(([0, 0, 0, 0], 8081)).await;
+    warp::serve(routes).run(([0, 0, 0, 0], port)).await;
 }

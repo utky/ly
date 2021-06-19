@@ -109,15 +109,14 @@ fn start_break(conf: &config::Config, break_type: Break) -> Result<()> {
 async fn main() -> Result<()> {
     env_logger::init();
     let init = SubCommand::with_name("init").about("initialize database");
-    let server = SubCommand::with_name("server").about("start server")
-        .arg(
-            Arg::with_name("port")
-                .long("port")
-                .short("p")
-                .value_name("PORT")
-                .takes_value(true)
-                .required(false),
-        );
+    let server = SubCommand::with_name("server").about("start server").arg(
+        Arg::with_name("port")
+            .long("port")
+            .short("p")
+            .value_name("PORT")
+            .takes_value(true)
+            .required(false),
+    );
     let start = SubCommand::with_name("start")
         .about("start pomodoro for the task")
         .arg(
@@ -305,7 +304,11 @@ async fn main() -> Result<()> {
             Ok(())
         }
         ("server", Some(server_m)) => {
-            let port = server_m.value_of("port").unwrap_or("8081").parse::<u16>().expect("port should be unsigned integer 16");
+            let port = server_m
+                .value_of("port")
+                .unwrap_or("8081")
+                .parse::<u16>()
+                .expect("port should be unsigned integer 16");
             web::start_server(conf, port).await;
             Ok(())
         }

@@ -8,7 +8,8 @@ port module Main exposing (..)
 
 
 import Browser exposing (Document)
-import Html exposing (Html, button, div, text)
+import Html exposing (Html, a, div, span, text, header, main_, ul, li)
+import Html.Attributes exposing (class, href, style)
 import Html.Events exposing (onClick)
 import Time exposing (every, Posix)
 import Http
@@ -181,13 +182,18 @@ view : Model -> Document Msg
 view model =
   Document 
     "ly"
-     [
-       div []
-           [ div [] [ text (Maybe.withDefault "" (Maybe.map (\t -> t.label) model.timer))]
-           , div [] [ timer model]
-           , div [] [ text (Maybe.withDefault "" model.errorMsg)]
-           ]
-     ]
+    [ header [ class "pure-menu", class "pure-menu-horizontal", class "pure-menu-fixed" ]
+        [ a [ class "pure-menu-heading", href "#" ] [ text "ly" ]
+        , ul [ class "pure-menu-list" ]
+            [ li [ class "pure-menu-item" ] [ span [ style "padding" ".5em 1em" ] [ timer model ] ]
+            , li [ class "pure-menu-item" ] [ span [ style "padding" ".5em 1em" ] [ text (Maybe.withDefault "" (Maybe.map (\t -> t.label) model.timer)) ] ]
+            ]
+        ]
+
+    , main_ [ class "pure-g" ]
+        [ div [] [ text (Maybe.withDefault "" model.errorMsg)]
+        ]
+    ]
   
 
 

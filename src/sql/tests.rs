@@ -242,3 +242,41 @@ fn test_fetch_daily_summary() -> Result<()> {
     assert_eq!(summaries[0].interruption_count, 0, "interruption_count");
     Ok(())
 }
+
+#[test]
+fn test_fetch_multiple_daily_summary() -> Result<()> {
+    let first_task_id = 1;
+    let mut session = get_initialized_session();
+    add_test_task(&mut session)?;
+
+    for t in [
+        (2015, 3, 14, 1, 0, 0),
+        (2015, 3, 14, 15, 0, 0), // 2021-03-15 00:00 JST
+        (2015, 3, 14, 16, 0, 0), // 2021-03-15 01:00 JST
+    ].iter() {
+        let started = Utc.ymd(t.0, t.1, t.2).and_hms(t.3, t.4, t.5);
+        complete_pomodoro(&mut session, first_task_id, started)?;
+    }
+
+    let range = stats::SummaryRange {
+        start: Utc.ymd(2015, 3, 14).and_hms(0, 0, 0),
+        end: Utc.ymd(2015, 3, 14).and_hms(17, 0, 0),
+    };
+    let summaries = session.fetch_daily_summary(&range)?;
+    assert_eq!(summaries.len(), 2);
+
+    for (i, answer) in [
+        (2015, 3, 14, 0, 0, 0, first_task_id, 1, 0),
+        (2015, 3, 15, 0, 0, 0, first_task_id, 2, 0),
+    ].iter().enumerate() {
+        assert_eq!(
+            summaries[i].date,
+            Utc.ymd(answer.0, answer.1, answer.2).and_hms(answer.3, answer.4, answer.5),
+            "date"
+        );
+        assert_eq!(summaries[i].task_id, answer.6, "task_id at {}", i);
+        assert_eq!(summaries[i].pomodoro_count, answer.7, "pomodoro_count at {}", i);
+        assert_eq!(summaries[i].interruption_count, answer.8, "interruption_count at {}", i);
+    }
+    Ok(())
+}

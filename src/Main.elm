@@ -236,7 +236,7 @@ update msg model =
       )
 
     DailySummarySuccess summaries ->
-      ({ model | dailySummaries = summaries }, Cmd.none)
+      ({ model | summary = summaryGroupByDate summaries }, Cmd.none)
 
     DailySummaryFailure message ->
       ({ model | errorMsg = Just message }, Cmd.none)

@@ -60,7 +60,7 @@ pub async fn start_server(conf: config::Config, port: u16) {
             .and(warp::get())
             .and(with_config(conf.clone()))
             .and_then(get_timer))
-        .or(path!("api" / "daily_stats")
+        .or(path!("api" / "daily_summary")
             .and(warp::get())
             .and(with_config(conf.clone()))
             .and(query::query())

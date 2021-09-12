@@ -33,7 +33,8 @@ type alias Model =
   { now : Posix
   , timeZone : Maybe Time.Zone
   , timer : Maybe Timer
-  , dailySummaries: List DailySummary
+  -- namingが微妙
+  , summary: List SummaryByDay
   , errorMsg : Maybe String
   , loading: Bool
   }
@@ -53,12 +54,46 @@ type alias DailySummary =
   , interruptionCount: Int
   }
 
+type alias SummaryByDay =
+  { date: Posix
+  , summaries: List DailySummary
+  }
+
+groupByForSorted : (a -> k) -> List a -> List (k, List a)
+groupByForSorted p xs =
+  let
+    groupOnFold : a -> (List a, List (k, List a)) -> (List a, List (k, List a))
+    groupOnFold x state =
+      case state of
+        ([], groups) ->
+          (List.singleton x, groups)
+        (y :: ys, groups) ->
+          if (p x) == (p y) then
+            -- push to WIP list
+            (x :: y :: ys, groups)
+          else
+            -- commit to result group
+            ([], ((p x), x :: y :: ys) :: groups)
+  in
+    case List.foldr groupOnFold ([], []) xs of
+      ([], groups) -> groups
+      (y :: ys, groups) -> ((p y), y :: ys) :: groups
+
+summaryGroupByDate : List DailySummary -> List SummaryByDay
+summaryGroupByDate ds =
+  let
+    sorted = List.sortBy (\s -> Time.posixToMillis s.date) ds
+    grouped = groupByForSorted (\s -> s.date) sorted
+  in
+    List.map (\(k, ss) -> SummaryByDay k ss) grouped
+
+
 init : () -> (Model, Cmd Msg)
 init _ =
   ( { now = Time.millisToPosix 0
     , timeZone = Nothing
     , timer = Nothing
-    , dailySummaries = []
+    , summary = []
     , errorMsg = Nothing
     , loading = False
     }
@@ -231,7 +266,7 @@ timer model =
       in
         text <| (padZero minutes) ++ ":" ++ (padZero seconds)
 
-dailySummary : Time.Zone -> DailySummary -> Html Msg
+dailySummary : Time.Zone -> SummaryByDay -> Html Msg
 dailySummary zone summary =
   let
     year = Time.toYear zone summary.date
@@ -239,10 +274,20 @@ dailySummary zone summary =
     day = Time.toDay zone summary.date
   in
     li []
-      [ span [] [ text ((String.fromInt year) ++ "-" ++ padZero (monthInt month) ++ "-" ++ padZero day) ]
-      , span [] [ text (String.fromInt summary.taskId) ]
-      , span [] [ text (String.fromInt summary.pomodoroCount) ]
+      [ span [] [ text <| (String.fromInt year) ++ "-" ++ padZero (monthInt month) ++ "-" ++ padZero day ]
+      , span [] [ text <| String.fromInt (List.sum <| List.map (\s -> s.pomodoroCount) summary.summaries) ]
       ]
+
+weekdayString : Time.Weekday -> String
+weekdayString weekday =
+  case weekday of
+    Time.Mon -> "月"
+    Time.Tue -> "火"
+    Time.Wed -> "水"
+    Time.Thu -> "木"
+    Time.Fri -> "金"
+    Time.Sat -> "土"
+    Time.Sun -> "日"
 
 monthInt : Time.Month -> Int
 monthInt month =
@@ -266,7 +311,7 @@ dailySummaries model =
     summaryItems = 
       case model.timeZone of
         Just timeZone ->
-          List.map (dailySummary timeZone) model.dailySummaries
+          List.map (dailySummary timeZone) model.summary
         Nothing ->
           []
   in

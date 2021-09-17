@@ -61,6 +61,42 @@ type alias SummaryByDay =
   , summaries: List DailySummary
   }
 
+type alias SummaryContext =
+  { maxPomodoroCount: Int
+  , summaryCount: Int
+  , timeZone : Time.Zone
+  , barWidthPercentage : Float
+  }
+
+testSummaries =
+  [ { date = Time.millisToPosix 1631404800000
+    , summaries =
+      [ { date = Time.millisToPosix 1631404800000, taskId = 1, pomodoroCount = 1, interruptionCount = 0 }
+      ]
+    }
+  , { date = Time.millisToPosix 1631404886400
+    , summaries =
+      [ { date = Time.millisToPosix 1631404886400, taskId = 1, pomodoroCount = 1, interruptionCount = 0 }
+      , { date = Time.millisToPosix 1631404886400, taskId = 1, pomodoroCount = 1, interruptionCount = 0 }
+      ]
+    }
+  , { date = Time.millisToPosix 1631404972800
+    , summaries =
+      [ { date = Time.millisToPosix 1631404972800, taskId = 1, pomodoroCount = 1, interruptionCount = 0 }
+      , { date = Time.millisToPosix 1631404972800, taskId = 1, pomodoroCount = 1, interruptionCount = 0 }
+      , { date = Time.millisToPosix 1631404972800, taskId = 1, pomodoroCount = 1, interruptionCount = 0 }
+      ]
+    }
+  , { date = Time.millisToPosix 1631405059200
+    , summaries =
+      [ { date = Time.millisToPosix 1631405059200, taskId = 1, pomodoroCount = 1, interruptionCount = 0 }
+      , { date = Time.millisToPosix 1631405059200, taskId = 1, pomodoroCount = 1, interruptionCount = 0 }
+      , { date = Time.millisToPosix 1631405059200, taskId = 1, pomodoroCount = 1, interruptionCount = 0 }
+      , { date = Time.millisToPosix 1631405059200, taskId = 1, pomodoroCount = 1, interruptionCount = 0 }
+      ]
+    }
+  ]
+
 groupByForSorted : (a -> k) -> List a -> List (k, List a)
 groupByForSorted p xs =
   let
@@ -238,7 +274,8 @@ update msg model =
       )
 
     DailySummarySuccess summaries ->
-      ({ model | summary = summaryGroupByDate summaries }, Cmd.none)
+      -- ({ model | summary = summaryGroupByDate summaries }, Cmd.none)
+      ({ model | summary = testSummaries }, Cmd.none)
 
     DailySummaryFailure message ->
       ({ model | errorMsg = Just message }, Cmd.none)
@@ -295,19 +332,23 @@ monthInt month =
     Time.Nov -> 11
     Time.Dec -> 12
 
-dailySummary : Time.Zone -> (Int, SummaryByDay) -> Html Msg
-dailySummary zone (i, summary) =
+percent : Float -> String
+percent v = (String.fromFloat v) ++ "%"
+
+dailySummary : SummaryContext -> (Int, SummaryByDay) -> Html Msg
+dailySummary context (i, summary) =
   let
-    year = Time.toYear zone summary.date
-    month = Time.toMonth zone summary.date
-    day = Time.toDay zone summary.date
+    year = Time.toYear context.timeZone summary.date
+    month = Time.toMonth context.timeZone summary.date
+    day = Time.toDay context.timeZone summary.date
     pomodoroCount = (List.sum <| List.map (\s -> s.pomodoroCount) summary.summaries)
+    heightPercentage = (toFloat pomodoroCount / toFloat context.maxPomodoroCount) * 100
   in
     rect
-      [ Svg.width "20"
-      , Svg.height <| String.fromInt <| pomodoroCount * 10
-      , Svg.x <| String.fromInt <| i * 20
-      , Svg.y <| String.fromInt <| 250 - (pomodoroCount * 10)
+      [ Svg.width <| percent <| context.barWidthPercentage
+      , Svg.height <| percent heightPercentage
+      , Svg.x <| percent <| (toFloat i * context.barWidthPercentage)
+      , Svg.y <| percent <| toFloat 100 - heightPercentage
       ]
       []
 
@@ -320,13 +361,22 @@ dailySummaries model =
     summaryItems = 
       case model.timeZone of
         Just timeZone ->
-          List.map (dailySummary timeZone) <| List.indexedMap Tuple.pair model.summary
+          let
+            maxPomodoroCount = List.foldr (+) 0 <| List.concatMap (\s -> List.map .pomodoroCount s.summaries) model.summary
+            summaryContext =
+                { maxPomodoroCount = maxPomodoroCount
+                , summaryCount = List.length model.summary
+                , timeZone = timeZone
+                , barWidthPercentage = toFloat 100 / toFloat maxPomodoroCount
+                }
+          in
+            List.map (dailySummary summaryContext) <| List.indexedMap Tuple.pair model.summary
         Nothing ->
           []
   in
     svg
-      [ Svg.width "500"
-      , Svg.height "250"
+      [ Svg.width "100%"
+      , Svg.height "100%"
       ]
       summaryItems
 

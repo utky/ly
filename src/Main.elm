@@ -10,6 +10,8 @@ import Json.Decode as D
 import Time
 import Task
 import Set exposing (Set)
+import Svg exposing (svg, rect)
+import Svg.Attributes as Svg
 
 -- MAIN
 
@@ -214,7 +216,7 @@ update msg model =
             { url = "/api/timer"
             , expect = expectJson handleTimer decodeTimer
             }
-          , Http.get
+          , Http.get -- updateコスト高そうなので60秒に一回とかにする
             -- timezoneも渡すようにして
             { url = "/api/daily_summary?" ++ (dailySummaryQueryParams model now)
             , expect = Http.expectJson handleDailySummaries (D.list decodeDailySummary)
@@ -266,18 +268,6 @@ timer model =
       in
         text <| (padZero minutes) ++ ":" ++ (padZero seconds)
 
-dailySummary : Time.Zone -> SummaryByDay -> Html Msg
-dailySummary zone summary =
-  let
-    year = Time.toYear zone summary.date
-    month = Time.toMonth zone summary.date
-    day = Time.toDay zone summary.date
-  in
-    li []
-      [ span [] [ text <| (String.fromInt year) ++ "-" ++ padZero (monthInt month) ++ "-" ++ padZero day ]
-      , span [] [ text <| String.fromInt (List.sum <| List.map (\s -> s.pomodoroCount) summary.summaries) ]
-      ]
-
 weekdayString : Time.Weekday -> String
 weekdayString weekday =
   case weekday of
@@ -305,17 +295,40 @@ monthInt month =
     Time.Nov -> 11
     Time.Dec -> 12
 
+dailySummary : Time.Zone -> (Int, SummaryByDay) -> Html Msg
+dailySummary zone (i, summary) =
+  let
+    year = Time.toYear zone summary.date
+    month = Time.toMonth zone summary.date
+    day = Time.toDay zone summary.date
+    pomodoroCount = (List.sum <| List.map (\s -> s.pomodoroCount) summary.summaries)
+  in
+    rect
+      [ Svg.width "20"
+      , Svg.height <| String.fromInt <| pomodoroCount * 10
+      , Svg.x <| String.fromInt <| i * 20
+      , Svg.y <| String.fromInt <| 250 - (pomodoroCount * 10)
+      ]
+      []
+
+
+
+
 dailySummaries : Model -> Html Msg
 dailySummaries model =
   let
     summaryItems = 
       case model.timeZone of
         Just timeZone ->
-          List.map (dailySummary timeZone) model.summary
+          List.map (dailySummary timeZone) <| List.indexedMap Tuple.pair model.summary
         Nothing ->
           []
   in
-    ul [] summaryItems
+    svg
+      [ Svg.width "500"
+      , Svg.height "250"
+      ]
+      summaryItems
 
 
 view : Model -> Document Msg

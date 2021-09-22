@@ -1,12 +1,12 @@
 use super::lane::Fetch as LaneFetch;
 use super::priority::Fetch as PriorityFetch;
-use super::stats;
+use super::meter;
 use super::task::{Add, Fetch as TaskFetch, Mod as TaskMod, Task};
 use super::timer;
 use super::todo;
 use super::Session;
 use crate::core::pomodoro;
-use crate::core::stats::Fetch;
+use crate::core::meter::MeterQuery;
 use crate::core::Id;
 use anyhow::Result;
 use chrono::{DateTime, TimeZone, Utc};
@@ -226,20 +226,18 @@ fn test_fetch_daily_summary() -> Result<()> {
     add_test_task(&mut session)?;
     let started = Utc.ymd(2015, 3, 14).and_hms(1, 0, 0);
     complete_pomodoro(&mut session, first_task_id, started)?;
-    let range = stats::SummaryRange {
+    let range = meter::TimeRange {
         start: Utc.ymd(2015, 3, 14).and_hms(1, 0, 0),
         end: Utc.ymd(2015, 3, 15).and_hms(1, 0, 0),
     };
-    let summaries = session.fetch_daily_summary(&range)?;
-    assert_eq!(summaries.len(), 1);
+    let measurements = session.query_pomodoro_daily(&range)?;
+    assert_eq!(measurements.data.len(), 1);
     assert_eq!(
-        summaries[0].date,
+        measurements.data[0].0,
         Utc.ymd(2015, 3, 14).and_hms(0, 0, 0),
         "date"
     );
-    assert_eq!(summaries[0].task_id, first_task_id, "task_id");
-    assert_eq!(summaries[0].pomodoro_count, 1, "pomodoro_count");
-    assert_eq!(summaries[0].interruption_count, 0, "interruption_count");
+    assert_eq!(measurements.data[0].1, 1.0, "pomodoro_count");
     Ok(())
 }
 
@@ -260,35 +258,29 @@ fn test_fetch_multiple_daily_summary() -> Result<()> {
         complete_pomodoro(&mut session, first_task_id, started)?;
     }
 
-    let range = stats::SummaryRange {
+    let range = meter::TimeRange {
         start: Utc.ymd(2015, 3, 14).and_hms(0, 0, 0),
         end: Utc.ymd(2015, 3, 14).and_hms(17, 0, 0),
     };
-    let summaries = session.fetch_daily_summary(&range)?;
-    assert_eq!(summaries.len(), 2);
+    let measurements = session.query_pomodoro_daily(&range)?;
+    assert_eq!(measurements.data.len(), 2);
 
     for (i, answer) in [
-        (2015, 3, 14, 0, 0, 0, first_task_id, 1, 0),
-        (2015, 3, 15, 0, 0, 0, first_task_id, 2, 0),
+        (2015, 3, 14, 0, 0, 0, 1.0),
+        (2015, 3, 15, 0, 0, 0, 2.0),
     ]
     .iter()
     .enumerate()
     {
         assert_eq!(
-            summaries[i].date,
+            measurements.data[i].0,
             Utc.ymd(answer.0, answer.1, answer.2)
                 .and_hms(answer.3, answer.4, answer.5),
             "date"
         );
-        assert_eq!(summaries[i].task_id, answer.6, "task_id at {}", i);
         assert_eq!(
-            summaries[i].pomodoro_count, answer.7,
+            measurements.data[i].1, answer.6,
             "pomodoro_count at {}",
-            i
-        );
-        assert_eq!(
-            summaries[i].interruption_count, answer.8,
-            "interruption_count at {}",
             i
         );
     }

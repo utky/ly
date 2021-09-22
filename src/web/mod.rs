@@ -1,7 +1,6 @@
-use crate::core::stats::Fetch;
-
+use super::core::meter::MeterQuery;
 use super::config;
-use super::core::stats;
+use super::core::meter;
 use super::core::timer;
 use super::public;
 use anyhow::Result;
@@ -31,13 +30,13 @@ async fn get_timer(conf: config::Config) -> Result<impl warp::Reply, warp::Rejec
     }
 }
 
-async fn fetch_daily_summary(
+async fn query_pomodoro_daily(
     conf: config::Config,
-    range: stats::SummaryRange,
+    range: meter::TimeRange,
 ) -> Result<impl warp::Reply, warp::Rejection> {
     match crate::sql::Session::connect(&conf).and_then(|session| {
         let mut s = session;
-        s.fetch_daily_summary(&range)
+        s.query_pomodoro_daily(&range)
     }) {
         Ok(summaries) => Ok(json(&summaries)),
         Err(_e) => Err(warp::reject()),
@@ -60,11 +59,11 @@ pub async fn start_server(conf: config::Config, port: u16) {
             .and(warp::get())
             .and(with_config(conf.clone()))
             .and_then(get_timer))
-        .or(path!("api" / "daily_summary")
+        .or(path!("api" / "pomodoro_daily")
             .and(warp::get())
             .and(with_config(conf.clone()))
             .and(query::query())
-            .and_then(fetch_daily_summary))
+            .and_then(query_pomodoro_daily))
         .or(end().map(|| html(public::index_html())));
     warp::serve(routes).run(([0, 0, 0, 0], port)).await;
 }

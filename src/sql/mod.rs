@@ -2,8 +2,7 @@ use crate::config::Config;
 use crate::core::lane;
 use crate::core::pomodoro;
 use crate::core::priority;
-use crate::core::stats;
-use crate::core::stats::DailySummary;
+use crate::core::meter;
 use crate::core::task;
 use crate::core::timer;
 use crate::core::todo;
@@ -14,6 +13,7 @@ use rusqlite::types::{ToSqlOutput, Value};
 use rusqlite::{
     params, Connection, Error, OptionalExtension, Result as SqlResult, Row, ToSql, NO_PARAMS,
 };
+use std::collections::HashMap;
 use std::convert::TryFrom;
 use timer::TimerType;
 
@@ -387,50 +387,32 @@ impl todo::Mod for Session {
 }
 
 // TODO: timezone offset as parameters
-static FETCH_DAILY_SUMMARY: &str = "
+static FETCH_POMODORO_DAILY: &str = "
 SELECT
-    datetime(date(time, '+09:00')),
-    task_id,
-    SUM(CASE WHEN item_type = 'task' THEN 1 ELSE 0 END) AS pomodoro_count,
-    SUM(CASE WHEN item_type = 'intr' THEN 1 ELSE 0 END) AS interruption_count 
-FROM (
-    SELECT
-        started_at AS time,
-        task_id,
-        'task' AS item_type
-    FROM
-        pomodoros
-    WHERE ? <= started_at AND started_at < ?
-    UNION ALL
-    SELECT
-        created_at AS time,
-        task_id,
-        'intr' AS item_type
-    FROM
-        interruptions
-    WHERE ? <= created_at AND created_at < ?
-) summary_items 
-GROUP BY datetime(date(time, '+09:00')), task_id";
-fn row_to_daily_summary(row: &Row) -> SqlResult<stats::DailySummary> {
-    Ok(stats::DailySummary {
-        date: row.get(0)?,
-        task_id: row.get(1)?,
-        pomodoro_count: row.get(2)?,
-        interruption_count: row.get(3)?,
-    })
+    datetime(date(started_at, '+09:00')) AS time,
+    COUNT(*) AS value
+FROM pomodoros
+WHERE ? <= started_at AND started_at < ?
+GROUP BY datetime(date(started_at, '+09:00'))";
+fn row_to_measurement(row: &Row) -> SqlResult<meter::Measurement> {
+    Ok(meter::Measurement::new(row.get(0)?, row.get(1)?))
 }
-impl stats::Fetch for Session {
-    fn fetch_daily_summary(&mut self, range: &stats::SummaryRange) -> Result<Vec<DailySummary>> {
-        let mut stmt = self.conn.prepare(FETCH_DAILY_SUMMARY)?;
+impl meter::MeterQuery for Session {
+    fn query_pomodoro_daily(&mut self, range: &meter::TimeRange) -> Result<meter::Measurements> {
+        let mut stmt = self.conn.prepare(FETCH_POMODORO_DAILY)?;
         let rows = stmt.query_map(
-            params![range.start, range.end, range.start, range.end],
-            |row| Ok(row_to_daily_summary(row)?),
+            params![range.start, range.end],
+            |row| Ok(row_to_measurement(row)?),
         )?;
         let mut results = Vec::new();
         for r in rows {
             results.push(r?);
         }
-        Ok(results)
+        Ok(meter::Measurements {
+          instrument: meter::Instrument::PomodoroDaily,
+          labels: HashMap::new(),
+          data: results,
+        })
     }
 }
 

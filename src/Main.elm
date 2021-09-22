@@ -9,9 +9,9 @@ import Http
 import Json.Decode as D
 import Time
 import Task
-import Set exposing (Set)
-import Svg exposing (svg, rect)
+import Svg exposing (svg, rect, title, desc, g, line)
 import Svg.Attributes as Svg
+import Dict exposing (Dict)
 
 -- MAIN
 
@@ -35,8 +35,7 @@ type alias Model =
   { now : Posix
   , timeZone : Maybe Time.Zone
   , timer : Maybe Timer
-  -- namingが微妙
-  , summary: List SummaryByDay
+  , pomodoroDaily: Maybe Measurements
   , errorMsg : Maybe String
   , loading: Bool
   }
@@ -49,16 +48,15 @@ type alias Timer =
   , durationMin: Int
   }
 
-type alias DailySummary =
-  { date: Posix
-  , taskId: Id
-  , pomodoroCount: Int
-  , interruptionCount: Int
+type alias Measuremet =
+  { time: Posix
+  , value: Float
   }
 
-type alias SummaryByDay =
-  { date: Posix
-  , summaries: List DailySummary
+type alias Measurements = 
+  { instrument: String
+  , labels: Dict String String
+  , data: List Measuremet
   }
 
 type alias SummaryContext =
@@ -68,70 +66,37 @@ type alias SummaryContext =
   , barWidthPercentage : Float
   }
 
-testSummaries =
-  [ { date = Time.millisToPosix 1631404800000
-    , summaries =
-      [ { date = Time.millisToPosix 1631404800000, taskId = 1, pomodoroCount = 1, interruptionCount = 0 }
-      ]
-    }
-  , { date = Time.millisToPosix 1631404886400
-    , summaries =
-      [ { date = Time.millisToPosix 1631404886400, taskId = 1, pomodoroCount = 1, interruptionCount = 0 }
-      , { date = Time.millisToPosix 1631404886400, taskId = 1, pomodoroCount = 1, interruptionCount = 0 }
-      ]
-    }
-  , { date = Time.millisToPosix 1631404972800
-    , summaries =
-      [ { date = Time.millisToPosix 1631404972800, taskId = 1, pomodoroCount = 1, interruptionCount = 0 }
-      , { date = Time.millisToPosix 1631404972800, taskId = 1, pomodoroCount = 1, interruptionCount = 0 }
-      , { date = Time.millisToPosix 1631404972800, taskId = 1, pomodoroCount = 1, interruptionCount = 0 }
-      ]
-    }
-  , { date = Time.millisToPosix 1631405059200
-    , summaries =
-      [ { date = Time.millisToPosix 1631405059200, taskId = 1, pomodoroCount = 1, interruptionCount = 0 }
-      , { date = Time.millisToPosix 1631405059200, taskId = 1, pomodoroCount = 1, interruptionCount = 0 }
-      , { date = Time.millisToPosix 1631405059200, taskId = 1, pomodoroCount = 1, interruptionCount = 0 }
-      , { date = Time.millisToPosix 1631405059200, taskId = 1, pomodoroCount = 1, interruptionCount = 0 }
-      ]
-    }
-  ]
+type alias ChartAxis a =
+  { label : String
+  , scale : a -> a
+  , scaleView: a -> String
+  }
 
-groupByForSorted : (a -> k) -> List a -> List (k, List a)
-groupByForSorted p xs =
-  let
-    groupOnFold : a -> (List a, List (k, List a)) -> (List a, List (k, List a))
-    groupOnFold x state =
-      case state of
-        ([], groups) ->
-          (List.singleton x, groups)
-        (y :: ys, groups) ->
-          if (p x) == (p y) then
-            -- push to WIP list
-            (x :: y :: ys, groups)
-          else
-            -- commit to result group
-            ([], ((p x), x :: y :: ys) :: groups)
-  in
-    case List.foldr groupOnFold ([], []) xs of
-      ([], groups) -> groups
-      (y :: ys, groups) -> ((p y), y :: ys) :: groups
+type alias BarChart x y =
+  { title: String
+  , xAxis: ChartAxis x
+  , yAxis: ChartAxis y
+  , data: List (x, y)
+  }
 
-summaryGroupByDate : List DailySummary -> List SummaryByDay
-summaryGroupByDate ds =
-  let
-    sorted = List.sortBy (\s -> Time.posixToMillis s.date) ds
-    grouped = groupByForSorted (\s -> s.date) sorted
-  in
-    List.map (\(k, ss) -> SummaryByDay k ss) grouped
-
+testPomodoroDaily : Measurements
+testPomodoroDaily =
+  { instrument = "pomodoro.daily"
+  , labels = Dict.empty
+  , data =
+      [ { time = Time.millisToPosix 1631404800000, value = 1.0 }
+      , { time = Time.millisToPosix 1631404886400, value = 2.0 }
+      , { time = Time.millisToPosix 1631404972800, value = 3.0 }
+      , { time = Time.millisToPosix 1631405059200, value = 4.0 }
+      ]
+  }
 
 init : () -> (Model, Cmd Msg)
 init _ =
   ( { now = Time.millisToPosix 0
     , timeZone = Nothing
     , timer = Nothing
-    , summary = []
+    , pomodoroDaily = Nothing
     , errorMsg = Nothing
     , loading = False
     }
@@ -148,8 +113,8 @@ type Msg
   | TimerSuccess Timer
   | TimerFailure String
   | TimerNotFound
-  | DailySummarySuccess (List DailySummary)
-  | DailySummaryFailure String
+  | MeasurementsSuccess Measurements
+  | MeasurementsFailure String
   | SetTimeZone Time.Zone
 
 posix : D.Decoder Posix
@@ -164,22 +129,27 @@ decodeTimer =
     (D.field "started_at" posix)
     (D.field "duration_min" D.int)
 
-decodeDailySummary : D.Decoder DailySummary
-decodeDailySummary =
-  D.map4 DailySummary
-    (D.field "date" posix)
-    (D.field "task_id" D.int)
-    (D.field "pomodoro_count" D.int)
-    (D.field "interruption_count" D.int)
+decodeMeasurement : D.Decoder Measuremet
+decodeMeasurement =
+    D.map2 Measuremet
+        (D.index 0 posix) 
+        (D.index 1 D.float)
 
-handleDailySummaries : Result Http.Error (List DailySummary) -> Msg
-handleDailySummaries result =
+decodeMeasurements : D.Decoder Measurements
+decodeMeasurements =
+  D.map3 Measurements
+    (D.field "instrument" D.string)
+    (D.field "labels"(D.dict D.string))
+    (D.field "data" (D.list decodeMeasurement))
+
+handleMeasurements : Result Http.Error Measurements -> Msg
+handleMeasurements result =
   case result of
     Ok s ->
-      DailySummarySuccess s
+      MeasurementsSuccess s
 
     Err _ ->
-      DailySummaryFailure "failed"
+      MeasurementsFailure "failed"
 
 handleTimer : Result Http.Error Timer -> Msg
 handleTimer result =
@@ -254,8 +224,8 @@ update msg model =
             }
           , Http.get -- updateコスト高そうなので60秒に一回とかにする
             -- timezoneも渡すようにして
-            { url = "/api/daily_summary?" ++ (dailySummaryQueryParams model now)
-            , expect = Http.expectJson handleDailySummaries (D.list decodeDailySummary)
+            { url = "/api/pomodoro_daily?" ++ (dailySummaryQueryParams model now)
+            , expect = Http.expectJson handleMeasurements decodeMeasurements
             }
         ]
       )
@@ -273,11 +243,13 @@ update msg model =
         Nothing -> Cmd.none
       )
 
-    DailySummarySuccess summaries ->
-      -- ({ model | summary = summaryGroupByDate summaries }, Cmd.none)
-      ({ model | summary = testSummaries }, Cmd.none)
+    MeasurementsSuccess measurements ->
+      if measurements.instrument == "pomodoro.daily" then
+        ({ model | pomodoroDaily = Just testPomodoroDaily }, Cmd.none)
+      else
+        (model, Cmd.none)
 
-    DailySummaryFailure message ->
+    MeasurementsFailure message ->
       ({ model | errorMsg = Just message }, Cmd.none)
 
     SetTimeZone zone ->
@@ -335,51 +307,81 @@ monthInt month =
 percent : Float -> String
 percent v = (String.fromFloat v) ++ "%"
 
-dailySummary : SummaryContext -> (Int, SummaryByDay) -> Html Msg
-dailySummary context (i, summary) =
+renderAxis : BarChart x y -> List (Html Msg)
+renderAxis barChart =
   let
-    year = Time.toYear context.timeZone summary.date
-    month = Time.toMonth context.timeZone summary.date
-    day = Time.toDay context.timeZone summary.date
-    pomodoroCount = (List.sum <| List.map (\s -> s.pomodoroCount) summary.summaries)
-    heightPercentage = (toFloat pomodoroCount / toFloat context.maxPomodoroCount) * 100
+    startX = []
   in
-    rect
-      [ Svg.width <| percent <| context.barWidthPercentage
-      , Svg.height <| percent heightPercentage
-      , Svg.x <| percent <| (toFloat i * context.barWidthPercentage)
-      , Svg.y <| percent <| toFloat 100 - heightPercentage
-      ]
-      []
+    -- x axis
+    [ g [ ]
+        [ g [ ]
+            [ line [ Svg.x1 "10%", Svg.y1 "90%", Svg.x2 "90%", Svg.y2 "90%", Svg.stroke "black" ] []
+            , Svg.text_
+                [ Svg.transform "rotate(-90, 20, 150)", Svg.x "20", Svg.y "150" ]
+                [ text barChart.xAxis.label ]
+            ]
+        ]
+    -- y axis
+    , g [  ]
+        [ g [  ]
+            [ line [ Svg.x1 "10%", Svg.y1 "10%", Svg.x2 "10%", Svg.y2 "90%", Svg.stroke "black" ] []
+            , Svg.text_
+                [ Svg.x "350", Svg.y "300" ]
+                [ text barChart.yAxis.label ]
+            ]
+        ]
+    ]
 
-
-
-
-dailySummaries : Model -> Html Msg
-dailySummaries model =
+renderBarChart : BarChart x y -> Html Msg
+renderBarChart barChart =
   let
-    summaryItems = 
-      case model.timeZone of
-        Just timeZone ->
-          let
-            maxPomodoroCount = List.foldr (+) 0 <| List.concatMap (\s -> List.map .pomodoroCount s.summaries) model.summary
-            summaryContext =
-                { maxPomodoroCount = maxPomodoroCount
-                , summaryCount = List.length model.summary
-                , timeZone = timeZone
-                , barWidthPercentage = toFloat 100 / toFloat maxPomodoroCount
-                }
-          in
-            List.map (dailySummary summaryContext) <| List.indexedMap Tuple.pair model.summary
-        Nothing ->
-          []
+    svgTitle = title [] [ text barChart.title ]
+    svgChart = renderAxis barChart
+    svgBody = svgTitle :: svgChart
   in
     svg
-      [ Svg.width "100%"
-      , Svg.height "100%"
+      -- [ Svg.width "100%"
+      -- , Svg.height "100%"
+      [ Svg.width "800"
+      , Svg.height "300"
       ]
-      summaryItems
+      svgChart
 
+makePomodoroDailyChart : Model -> Maybe (BarChart Posix Float)
+makePomodoroDailyChart model =
+  let
+    yAxis : ChartAxis Float
+    yAxis =
+      { label = "Pomodoro"
+      , scale = \pomo -> pomo + 1
+      , scaleView = \pomo -> String.fromFloat pomo
+      }
+    xAxis : Time.Zone -> ChartAxis Posix
+    xAxis timeZone =
+      { label = "Date"
+      , scale = \t -> Time.millisToPosix <| (86400 * 1000) + (Time.posixToMillis t)
+      , scaleView = \t ->
+          let
+            month = Time.toMonth timeZone t
+            day = Time.toDay timeZone t
+          in
+            (String.fromInt <| monthInt month) ++ "/" ++ (String.fromInt day)
+      }
+    barChart : Time.Zone -> Measurements -> BarChart Posix Float
+    barChart timeZone measurements =
+      { title = "Pomodoro Daily"
+      , xAxis = xAxis timeZone
+      , yAxis = yAxis
+      , data = List.map (\m -> (m.time, m.value)) measurements.data
+      }
+  in
+    Maybe.andThen (\timeZone -> Maybe.map (barChart timeZone) model.pomodoroDaily) model.timeZone
+
+renderPomodoroDaily : Model -> Html Msg
+renderPomodoroDaily model =
+  case makePomodoroDailyChart model of
+     Just chart -> renderBarChart chart
+     Nothing -> div [] []
 
 view : Model -> Document Msg
 view model =
@@ -395,7 +397,7 @@ view model =
             ]
         ]
     , main_ [ style "width" "100%", style "padding-top" "45px", style "padding-right" "15px", style "padding-left" "15px", style "margin-right" "auto", style "margin-left" "auto" ]
-        [ section [ class "pure-g" ] [ div [ class "pure-u-1" ] [ dailySummaries model ] ]
+        [ section [ class "pure-g" ] [ div [ class "pure-u-1" ] [ renderPomodoroDaily model ] ]
         , section [ class "pure-g" ] [ div [ class "pure-u-1" ] [ text (Maybe.withDefault "" model.errorMsg) ] ]
         ]
     ]

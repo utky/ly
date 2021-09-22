@@ -1,8 +1,8 @@
 use crate::config::Config;
 use crate::core::lane;
+use crate::core::meter;
 use crate::core::pomodoro;
 use crate::core::priority;
-use crate::core::meter;
 use crate::core::task;
 use crate::core::timer;
 use crate::core::todo;
@@ -400,18 +400,17 @@ fn row_to_measurement(row: &Row) -> SqlResult<meter::Measurement> {
 impl meter::MeterQuery for Session {
     fn query_pomodoro_daily(&mut self, range: &meter::TimeRange) -> Result<meter::Measurements> {
         let mut stmt = self.conn.prepare(FETCH_POMODORO_DAILY)?;
-        let rows = stmt.query_map(
-            params![range.start, range.end],
-            |row| Ok(row_to_measurement(row)?),
-        )?;
+        let rows = stmt.query_map(params![range.start, range.end], |row| {
+            Ok(row_to_measurement(row)?)
+        })?;
         let mut results = Vec::new();
         for r in rows {
             results.push(r?);
         }
         Ok(meter::Measurements {
-          instrument: meter::Instrument::PomodoroDaily,
-          labels: HashMap::new(),
-          data: results,
+            instrument: meter::Instrument::PomodoroDaily,
+            labels: HashMap::new(),
+            data: results,
         })
     }
 }

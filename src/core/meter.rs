@@ -4,17 +4,17 @@ use std::fmt::Display;
 use anyhow::Result;
 use chrono::serde::ts_milliseconds;
 use chrono::{DateTime, Utc};
-use serde::{Deserialize, Serialize, Serializer, ser::SerializeTuple};
+use serde::{ser::SerializeTuple, Deserialize, Serialize, Serializer};
 
 #[derive(Debug)]
 pub enum Instrument {
-    PomodoroDaily
+    PomodoroDaily,
 }
 
 impl Display for Instrument {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let s = match self {
-            &Self::PomodoroDaily => "pomodoro.daily"
+            &Self::PomodoroDaily => "pomodoro.daily",
         };
         write!(f, "{}", s)
     }
@@ -33,7 +33,7 @@ impl Serialize for Measurement {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where
         S: Serializer,
-     {
+    {
         let mut tuple = serializer.serialize_tuple(2)?;
         tuple.serialize_element(&self.0.timestamp_millis())?;
         tuple.serialize_element(&self.1)?;
@@ -44,7 +44,7 @@ impl Serialize for Measurement {
 fn serialize_display<T, S>(value: &T, serializer: S) -> Result<S::Ok, S::Error>
 where
     T: Display,
-    S: Serializer
+    S: Serializer,
 {
     serializer.collect_str(value)
 }
@@ -72,9 +72,9 @@ pub trait MeterQuery {
 
 #[cfg(test)]
 mod test {
-    use serde_json;
-    use chrono::{Utc, TimeZone};
     use super::Measurement;
+    use chrono::{TimeZone, Utc};
+    use serde_json;
 
     #[test]
     fn test_sertialize_measurement() {

@@ -1,6 +1,6 @@
-use super::core::meter::MeterQuery;
 use super::config;
 use super::core::meter;
+use super::core::meter::MeterQuery;
 use super::core::timer;
 use super::public;
 use anyhow::Result;

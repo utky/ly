@@ -1,12 +1,12 @@
 use super::lane::Fetch as LaneFetch;
-use super::priority::Fetch as PriorityFetch;
 use super::meter;
+use super::priority::Fetch as PriorityFetch;
 use super::task::{Add, Fetch as TaskFetch, Mod as TaskMod, Task};
 use super::timer;
 use super::todo;
 use super::Session;
-use crate::core::pomodoro;
 use crate::core::meter::MeterQuery;
+use crate::core::pomodoro;
 use crate::core::Id;
 use anyhow::Result;
 use chrono::{DateTime, TimeZone, Utc};
@@ -265,12 +265,9 @@ fn test_fetch_multiple_daily_summary() -> Result<()> {
     let measurements = session.query_pomodoro_daily(&range)?;
     assert_eq!(measurements.data.len(), 2);
 
-    for (i, answer) in [
-        (2015, 3, 14, 0, 0, 0, 1.0),
-        (2015, 3, 15, 0, 0, 0, 2.0),
-    ]
-    .iter()
-    .enumerate()
+    for (i, answer) in [(2015, 3, 14, 0, 0, 0, 1.0), (2015, 3, 15, 0, 0, 0, 2.0)]
+        .iter()
+        .enumerate()
     {
         assert_eq!(
             measurements.data[i].0,
@@ -278,11 +275,7 @@ fn test_fetch_multiple_daily_summary() -> Result<()> {
                 .and_hms(answer.3, answer.4, answer.5),
             "date"
         );
-        assert_eq!(
-            measurements.data[i].1, answer.6,
-            "pomodoro_count at {}",
-            i
-        );
+        assert_eq!(measurements.data[i].1, answer.6, "pomodoro_count at {}", i);
     }
     Ok(())
 }

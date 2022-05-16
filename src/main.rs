@@ -1,13 +1,15 @@
 #[macro_use]
 extern crate log;
-extern crate clap;
 use crate::cli::TaskContext;
 use crate::core::timer;
 use crate::core::Id;
 use anyhow::{bail, Result};
 use chrono::{DateTime, FixedOffset, TimeZone, Utc};
-use clap::{arg_enum, value_t, App, Arg, SubCommand};
+use clap::{ArgEnum, Parser, Subcommand};
 use std::convert::TryFrom;
+use std::error::Error;
+use std::fmt::Display;
+use std::str::FromStr;
 
 mod cli;
 mod config;
@@ -18,12 +20,96 @@ mod web;
 
 const VERSION: &str = env!("CARGO_PKG_VERSION");
 
-arg_enum! {
-    #[derive(Debug)]
-    pub enum Break {
-        Short,
-        Long,
-    }
+#[derive(Parser)]
+#[clap(author, version, about, long_about = None)]
+struct Ly {
+    #[clap(subcommand)]
+    command: Command,
+}
+
+#[derive(Subcommand)]
+enum Command {
+    /// Initialize database on local file system
+    Init {},
+    /// Start ly server
+    Server {
+        /// Port number to listen
+        #[clap(short, long)]
+        port: u16,
+    },
+    /// Start pomodoro
+    Start {
+        /// Task ID
+        #[clap(short, long)]
+        id: i64,
+        /// Pomodoro duration
+        #[clap(short, long)]
+        duration: i64,
+    },
+    Break {
+        #[clap(arg_enum)]
+        break_type: BreakType,
+    },
+    Task {
+        #[clap(subcommand)]
+        task_command: TaskCommand,
+    },
+    Todo {
+        #[clap(subcommand)]
+        todo_command: TodoCommand,
+    },
+}
+
+#[derive(Subcommand)]
+enum TaskCommand {
+    Ls {
+        #[clap(short, long, default_value_t = String::from("backlog"))]
+        lane: String,
+    },
+    Add {
+        #[clap(short, long)]
+        summary: String,
+        #[clap(short, long, default_value_t = String::from("backlog"))]
+        lane: String,
+        #[clap(short, long, default_value_t = String::from("n"))]
+        priority: String,
+        #[clap(short, long, default_value_t = 1)]
+        estimate: i64,
+    },
+    Mod {
+        #[clap(short, long)]
+        id: i64,
+        #[clap(short, long)]
+        summary: Option<String>,
+        #[clap(short, long)]
+        lane: Option<String>,
+        #[clap(short, long)]
+        priority: Option<String>,
+        #[clap(short, long)]
+        estimate: Option<i64>,
+    },
+    Rm {
+        #[clap(short, long)]
+        id: i64,
+    },
+}
+
+#[derive(Subcommand)]
+enum TodoCommand {
+    Ls {
+        #[clap(short, long)]
+        date: Option<String>,
+    },
+    Load {
+        #[clap(short, long)]
+        date: Option<String>,
+    },
+}
+
+#[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, ArgEnum)]
+pub enum BreakType {
+    Short,
+    Long,
 }
 
 struct CleanupCurrent {
@@ -69,6 +155,12 @@ fn parse_or_today(timezone: &FixedOffset, input: Option<&str>) -> Result<DateTim
     }
 }
 
+fn format_date(conf: &config::Config, date: DateTime<Utc>) -> String {
+    date.with_timezone(&conf.timezone)
+        .format("%Y-%m-%d")
+        .to_string()
+}
+
 fn start_pomodoro(conf: &config::Config, task_id: Id, duration_min: i64) -> Result<()> {
     let timer: Result<timer::Timer> = {
         let mut session = sql::Session::connect(conf)?;
@@ -86,10 +178,10 @@ fn start_pomodoro(conf: &config::Config, task_id: Id, duration_min: i64) -> Resu
     Ok(())
 }
 
-fn start_break(conf: &config::Config, break_type: Break) -> Result<()> {
+fn start_break(conf: &config::Config, break_type: BreakType) -> Result<()> {
     let (timer_type, duration_min) = match break_type {
-        Break::Short => (core::timer::TimerType::ShortBreak, conf.short_break),
-        Break::Long => (core::timer::TimerType::LongBreak, conf.long_break),
+        BreakType::Short => (core::timer::TimerType::ShortBreak, conf.short_break),
+        BreakType::Long => (core::timer::TimerType::LongBreak, conf.long_break),
     };
     let timer: Result<timer::Timer> = {
         let mut session = sql::Session::connect(conf)?;
@@ -108,234 +200,25 @@ fn start_break(conf: &config::Config, break_type: Break) -> Result<()> {
 #[tokio::main]
 async fn main() -> Result<()> {
     env_logger::init();
-    let init = SubCommand::with_name("init").about("initialize database");
-    let server = SubCommand::with_name("server").about("start server").arg(
-        Arg::with_name("port")
-            .long("port")
-            .short("p")
-            .value_name("PORT")
-            .takes_value(true)
-            .required(false),
-    );
-    let start = SubCommand::with_name("start")
-        .about("start pomodoro for the task")
-        .arg(
-            Arg::with_name("id")
-                .long("id")
-                .short("i")
-                .value_name("ID")
-                .takes_value(true)
-                .required(true),
-        )
-        .arg(
-            Arg::with_name("duration")
-                .long("duration")
-                .short("d")
-                .value_name("MINUTES")
-                .takes_value(true)
-                .required(false),
-        );
-    let take_break = SubCommand::with_name("break").about("take a break").arg(
-        Arg::with_name("type")
-            .long("type")
-            .short("t")
-            .value_name("TYPE")
-            .takes_value(true)
-            .required(false),
-    );
-    let task_list = SubCommand::with_name("ls").about("list tasks").arg(
-        Arg::with_name("lane")
-            .long("lane")
-            .short("l")
-            .value_name("LANE_NAME")
-            .takes_value(true)
-            .required(false),
-    );
-    let task_add = SubCommand::with_name("add")
-        .about("add task")
-        .arg(
-            Arg::with_name("summary")
-                .long("summary")
-                .short("s")
-                .value_name("TEXT")
-                .takes_value(true)
-                .required(true),
-        )
-        .arg(
-            Arg::with_name("lane")
-                .long("lane")
-                .short("l")
-                .value_name("LANE_NAME")
-                .takes_value(true)
-                .required(false),
-        )
-        .arg(
-            Arg::with_name("priority")
-                .long("priority")
-                .short("p")
-                .value_name("PRIORITY_NAME")
-                .takes_value(true)
-                .required(false),
-        )
-        .arg(
-            Arg::with_name("estimate")
-                .long("estimate")
-                .short("e")
-                .value_name("NUM_OF_POMODORO")
-                .takes_value(true)
-                .required(true),
-        );
-    let task_mod = SubCommand::with_name("mod")
-        .about("modify task")
-        .arg(
-            Arg::with_name("id")
-                .long("id")
-                .short("i")
-                .value_name("ID")
-                .takes_value(true)
-                .required(true),
-        )
-        .arg(
-            Arg::with_name("lane")
-                .long("lane")
-                .short("l")
-                .value_name("LANE_NAME")
-                .takes_value(true)
-                .required(false),
-        )
-        .arg(
-            Arg::with_name("priority")
-                .long("priority")
-                .short("p")
-                .value_name("PRIORITY_NAME")
-                .takes_value(true)
-                .required(false),
-        )
-        .arg(
-            Arg::with_name("summary")
-                .long("summary")
-                .short("s")
-                .value_name("TEXT")
-                .takes_value(true)
-                .required(false),
-        )
-        .arg(
-            Arg::with_name("estimate")
-                .long("estimate")
-                .short("e")
-                .value_name("NUM_OF_POMODORO")
-                .takes_value(true)
-                .required(false),
-        );
-    let task_rm = SubCommand::with_name("rm").about("remove task");
-    let task = SubCommand::with_name("task")
-        .about("task related")
-        .alias("t")
-        .subcommand(task_list)
-        .subcommand(task_add)
-        .subcommand(task_mod)
-        .subcommand(task_rm);
-    let todo_list = SubCommand::with_name("ls").about("list todo tasks").arg(
-        Arg::with_name("date")
-            .long("date")
-            .short("d")
-            .value_name("YYYY-MM-DD")
-            .takes_value(true)
-            .required(false),
-    );
-    let todo_mod = SubCommand::with_name("mod")
-        .about("modify todo")
-        .arg(
-            Arg::with_name("date")
-                .long("date")
-                .short("d")
-                .value_name("YYYY-MM-DD")
-                .takes_value(true)
-                .required(false),
-        )
-        .arg(
-            Arg::with_name("add")
-                .long("add")
-                .short("a")
-                .value_name("TASK_ID")
-                .takes_value(true)
-                .multiple(true)
-                .number_of_values(1),
-        )
-        .arg(
-            Arg::with_name("remove")
-                .long("rm")
-                .short("r")
-                .value_name("TASK_ID")
-                .takes_value(true)
-                .multiple(true)
-                .number_of_values(1),
-        );
-    let todo_load = SubCommand::with_name("load").about("load todo task").arg(
-        Arg::with_name("date")
-            .long("date")
-            .short("d")
-            .value_name("YYYY-MM-DD")
-            .takes_value(true)
-            .required(false),
-    );
-    let todo = SubCommand::with_name("todo")
-        .about("todo related operations")
-        .subcommand(todo_list)
-        .subcommand(todo_mod)
-        .subcommand(todo_load);
-    let matches = App::new("ly")
-        .version(VERSION)
-        .author("Yutaka Imamura")
-        .about("Pomodoro time tracker")
-        .subcommand(init)
-        .subcommand(server)
-        .subcommand(start)
-        .subcommand(take_break)
-        .subcommand(task)
-        .subcommand(todo)
-        .get_matches();
+    let ly = Ly::parse();
 
     let conf = config::Config::from_env()?;
-    match matches.subcommand() {
-        ("init", _) => {
+    match ly.command {
+        Command::Init {} => {
             let mut session = sql::Session::connect(&conf)?;
             session.initialize()?;
             Ok(())
         }
-        ("server", Some(server_m)) => {
-            let port = server_m
-                .value_of("port")
-                .unwrap_or("8081")
-                .parse::<u16>()
-                .expect("port should be unsigned integer 16");
+        Command::Server { port } => {
             web::start_server(conf, port).await;
             Ok(())
         }
-        ("start", Some(start_m)) => {
-            let task_id = start_m
-                .value_of("id")
-                .unwrap()
-                .parse::<i64>()
-                .expect("id should be integer");
-            let duration_min = start_m
-                .value_of("duration")
-                .unwrap_or("25")
-                .parse::<i64>()
-                .expect("duration should be integer");
-            start_pomodoro(&conf, task_id, duration_min)
-        }
-        ("break", Some(break_m)) => {
-            let break_type = value_t!(break_m, "type", Break).unwrap_or_else(|e| e.exit());
-            start_break(&conf, break_type)
-        }
-        ("task", Some(task_m)) => match task_m.subcommand() {
-            ("ls", task_ls_m) => {
+        Command::Start { id, duration } => start_pomodoro(&conf, id, duration),
+        Command::Break { break_type } => start_break(&conf, break_type),
+        Command::Task { task_command } => match task_command {
+            TaskCommand::Ls { lane } => {
                 let mut session = sql::Session::connect(&conf)?;
-                let tasks = core::task::list_all_tasks(
-                    &mut session,
-                    task_ls_m.unwrap().value_of("lane").unwrap_or("backlog"),
-                )?;
+                let tasks = core::task::list_all_tasks(&mut session, &lane)?;
                 let lanes = core::lane::fetch_all_lanes(&mut session)?;
                 let priorities = core::priority::fetch_all_priority(&mut session)?;
                 let context = TaskContext::new(&lanes, &priorities);
@@ -344,48 +227,43 @@ async fn main() -> Result<()> {
                 }
                 Ok(())
             }
-            ("add", Some(task_add_m)) => {
+            TaskCommand::Add {
+                summary,
+                lane,
+                priority,
+                estimate,
+            } => {
                 let mut session = sql::Session::connect(&conf)?;
-                core::task::add_task(
-                    &mut session,
-                    task_add_m.value_of("lane").unwrap_or("backlog"),
-                    task_add_m.value_of("priority").unwrap_or("n"),
-                    task_add_m.value_of("summary").unwrap(),
-                    task_add_m
-                        .value_of("estimate")
-                        .unwrap()
-                        .parse::<i64>()
-                        .expect("estimate should be integer"),
-                )?;
+                core::task::add_task(&mut session, &lane, &priority, &summary, estimate)?;
                 Ok(())
             }
-            ("mod", Some(task_mod_m)) => {
+            TaskCommand::Mod {
+                id,
+                summary,
+                lane,
+                priority,
+                estimate,
+            } => {
                 let mut session = sql::Session::connect(&conf)?;
                 core::task::mod_task(
                     &mut session,
-                    task_mod_m
-                        .value_of("id")
-                        .unwrap()
-                        .parse::<i64>()
-                        .expect("id should be integer"),
-                    task_mod_m.value_of("lane"),
-                    task_mod_m.value_of("priority"),
-                    task_mod_m.value_of("summary"),
-                    task_mod_m
-                        .value_of("estimate")
-                        .map(|v| v.parse::<i64>().expect("estimate should be integer")),
+                    id,
+                    lane.as_deref(),
+                    priority.as_deref(),
+                    summary.as_deref(),
+                    estimate,
                 )?;
                 Ok(())
             }
-            // ("rm", _) => {
-            //     rm_task().await.expect("rm task");
-            // }
-            _ => bail!("invalid options"),
+            TaskCommand::Rm { id } => {
+                // TODO
+                Ok(())
+            }
         },
-        ("todo", Some(todo_m)) => match todo_m.subcommand() {
-            ("ls", Some(todo_ls_m)) => {
+        Command::Todo { todo_command } => match todo_command {
+            TodoCommand::Ls { date } => {
                 let mut session = sql::Session::connect(&conf)?;
-                let date = parse_or_today(&conf.timezone, todo_ls_m.value_of("date"))?;
+                let date = parse_or_today(&conf.timezone, date.as_deref())?;
                 let tasks = core::todo::list_todo_tasks(&mut session, &date)?;
 
                 let estimate = tasks.iter().fold(0, |s, t| s + t.estimate);
@@ -393,7 +271,7 @@ async fn main() -> Result<()> {
                 let remaining = estimate - actual;
                 println!(
                     "#date:{}\testimate:{}\tactual:{}\tremaining:{}",
-                    date.with_timezone(&conf.timezone).format("%Y-%m-%d"),
+                    format_date(&conf, date),
                     estimate,
                     actual,
                     remaining
@@ -407,38 +285,19 @@ async fn main() -> Result<()> {
                 }
                 Ok(())
             }
-            ("mod", Some(plan_mod_m)) => {
+            TodoCommand::Load { date } => {
                 let mut session = sql::Session::connect(&conf)?;
-                let date = parse_or_today(&conf.timezone, plan_mod_m.value_of("date"))?;
-                let added: Vec<Id> = plan_mod_m
-                    .values_of("add")
-                    .unwrap_or_default()
-                    .map(|s| s.parse::<i64>().expect("estimate should be integer"))
-                    .collect();
-                let removed: Vec<Id> = plan_mod_m
-                    .values_of("remove")
-                    .unwrap_or_default()
-                    .map(|s| s.parse::<i64>().expect("estimate should be integer"))
-                    .collect();
-                core::todo::mod_todo(&mut session, &date, &added, &removed)?;
-                println!("{}", date.with_timezone(&conf.timezone).format("%Y-%m-%d"));
-                Ok(())
-            }
-            ("load", Some(todo_load_m)) => {
-                let mut session = sql::Session::connect(&conf)?;
-                let date = parse_or_today(&conf.timezone, todo_load_m.value_of("date"))?;
+                let date = parse_or_today(&conf.timezone, date.as_deref())?;
                 let stdin = std::io::stdin();
                 let stdin = stdin.lock();
                 let ids_to_load = parse_line_as_task_ids(stdin)?;
                 let empty_removed = Vec::new();
                 core::todo::clear_todo(&mut session, &date)?;
                 core::todo::mod_todo(&mut session, &date, &ids_to_load, &empty_removed)?;
-                println!("{}", date.with_timezone(&conf.timezone).format("%Y-%m-%d"));
+                println!("{}", format_date(&conf, date));
                 Ok(())
             }
-            _ => bail!("invalid options"),
         },
-        _ => bail!("invalid options"),
     }
 }
 

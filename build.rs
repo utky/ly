@@ -1,6 +1,6 @@
 use std::env;
 use std::process::Command;
-fn main() {
+fn main() -> std::io::Result<()> {
     let out_dir = env::var("OUT_DIR").unwrap();
     Command::new("elm")
         .args(&[
@@ -11,5 +11,6 @@ fn main() {
         ])
         .status()
         .unwrap();
-    println!("cargo:rerun-if-changed=src/Main.elm")
+    println!("cargo:rerun-if-changed=src/Main.elm");
+    tonic_build::compile_protos("proto/ly/main.proto")
 }

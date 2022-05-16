@@ -10,9 +10,7 @@ use crate::core::Id;
 use anyhow::{Context, Result};
 use chrono::{DateTime, Duration, Utc};
 use rusqlite::types::{ToSqlOutput, Value};
-use rusqlite::{
-    params, Connection, Error, OptionalExtension, Result as SqlResult, Row, ToSql, NO_PARAMS,
-};
+use rusqlite::{params, Connection, Error, OptionalExtension, Result as SqlResult, Row, ToSql};
 use std::collections::HashMap;
 use std::convert::TryFrom;
 use timer::TimerType;
@@ -35,7 +33,7 @@ impl Session {
     pub fn initialize(&mut self) -> Result<()> {
         for stmt in ddl::STATEMENTS.iter() {
             self.conn
-                .execute(stmt, NO_PARAMS)
+                .execute(stmt, [])
                 .with_context(|| format!("Failed to run statement {}", stmt))?;
         }
         Ok(())
@@ -206,7 +204,7 @@ impl timer::TimerTaskAdd for Session {
 
 impl timer::TimerTaskRemove for Session {
     fn remove_timer_task(&mut self) -> Result<()> {
-        self.conn.execute(DELETE_TIMER_TASK, NO_PARAMS)?;
+        self.conn.execute(DELETE_TIMER_TASK, [])?;
         Ok(())
     }
 }
@@ -215,7 +213,7 @@ impl timer::TimerTaskGet for Session {
     fn get_timer_task(&mut self) -> Result<Option<timer::TimerTask>> {
         let timer_task = self
             .conn
-            .query_row(GET_TIMER_TASK, NO_PARAMS, |row| {
+            .query_row(GET_TIMER_TASK, [], |row| {
                 Ok(timer::TimerTask {
                     timer_id: row.get(0)?,
                     task_id: row.get(1)?,
@@ -239,11 +237,11 @@ impl timer::Lifecycle for Session {
     ) -> Result<timer::Timer> {
         self.conn
             .execute(START, params![timer_type, label, duration_min])?;
-        let c = self.conn.query_row(GET_TIMER, NO_PARAMS, row_to_timer)?;
+        let c = self.conn.query_row(GET_TIMER, [], row_to_timer)?;
         Ok(c)
     }
     fn complete(&mut self) -> Result<()> {
-        self.conn.execute(COMPLETE, NO_PARAMS)?;
+        self.conn.execute(COMPLETE, [])?;
         Ok(())
     }
 }
@@ -252,7 +250,7 @@ impl timer::Get for Session {
     fn get(&mut self) -> Result<Option<timer::Timer>> {
         let c = self
             .conn
-            .query_row(GET_TIMER, NO_PARAMS, row_to_timer)
+            .query_row(GET_TIMER, [], row_to_timer)
             .optional()?;
         Ok(c)
     }

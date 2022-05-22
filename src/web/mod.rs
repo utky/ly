@@ -1,15 +1,18 @@
-use std::fmt::Display;
+use std::{fmt::Display, io::ErrorKind};
 
 use super::config;
 use super::core::meter;
 use super::core::meter::MeterQuery;
 use super::core::timer;
 use super::public;
+use super::sql::Session;
 use actix_web::{get, web, App, HttpResponse, HttpResponseBuilder, HttpServer, Responder};
 use anyhow::Result;
+use tokio::sync::Mutex;
 
 struct State {
     conf: config::Config,
+    session: Mutex<Session>,
 }
 
 #[derive(Debug)]
@@ -53,14 +56,8 @@ impl actix_web::error::ResponseError for WebApiError {
 
 #[get("/timer")]
 async fn get_timer(data: web::Data<State>) -> impl Responder {
-    let result: Result<Option<timer::Timer>> = {
-        let session = crate::sql::Session::connect(&data.conf);
-        session.and_then(|s| {
-            let mut ms = s;
-            timer::get_current_timer(&mut ms)
-        })
-    };
-    match result {
+    let mut session = data.session.lock().await;
+    match timer::get_current_timer(&mut *session) {
         Ok(Some(c)) => Ok(web::Json(c)),
         Ok(None) => Err(WebApiError::TimerNotFound),
         Err(_e) => Err(WebApiError::InternalError),
@@ -72,19 +69,25 @@ async fn query_pomodoro_daily(
     data: web::Data<State>,
     range: web::Query<meter::TimeRange>,
 ) -> impl Responder {
-    match crate::sql::Session::connect(&data.conf).and_then(|session| {
-        let mut s = session;
-        s.query_pomodoro_daily(&range)
-    }) {
+    let mut session = data.session.lock().await;
+    match session.query_pomodoro_daily(&range) {
         Ok(summaries) => Ok(web::Json(summaries)),
         Err(_e) => Err(WebApiError::InternalError),
     }
 }
 
 pub async fn start_server(conf: config::Config, port: u16) -> std::io::Result<()> {
+    let session = crate::sql::Session::connect(&conf)
+        .map_err(|e| std::io::Error::new(ErrorKind::Other, e.to_string()))?;
+
+    let state = State {
+        conf,
+        session: Mutex::new(session),
+    };
+    let data = web::Data::new(state);
     HttpServer::new(move || {
         App::new()
-            .app_data(web::Data::new(State { conf: conf.clone() }))
+            .app_data(data.clone())
             .route(
                 "/",
                 web::get().to(|| async {

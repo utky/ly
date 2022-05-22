@@ -3,13 +3,10 @@ extern crate log;
 use crate::cli::TaskContext;
 use crate::core::timer;
 use crate::core::Id;
-use anyhow::{bail, Result};
+use anyhow::Result;
 use chrono::{DateTime, FixedOffset, TimeZone, Utc};
 use clap::{ArgEnum, Parser, Subcommand};
 use std::convert::TryFrom;
-use std::error::Error;
-use std::fmt::Display;
-use std::str::FromStr;
 
 mod cli;
 mod config;
@@ -17,8 +14,6 @@ mod core;
 mod public;
 mod sql;
 mod web;
-
-const VERSION: &str = env!("CARGO_PKG_VERSION");
 
 #[derive(Parser)]
 #[clap(author, version, about, long_about = None)]
@@ -209,10 +204,7 @@ async fn main() -> Result<()> {
             session.initialize()?;
             Ok(())
         }
-        Command::Server { port } => {
-            web::start_server(conf, port).await;
-            Ok(())
-        }
+        Command::Server { port } => web::start_server(conf, port).await,
         Command::Start { id, duration } => start_pomodoro(&conf, id, duration),
         Command::Break { break_type } => start_break(&conf, break_type),
         Command::Task { task_command } => match task_command {

@@ -1,4 +1,4 @@
-use std::{fmt::Display, io::ErrorKind};
+use std::fmt::Display;
 
 use super::config;
 use super::core::meter;
@@ -7,11 +7,10 @@ use super::core::timer;
 use super::public;
 use super::sql::Session;
 use actix_web::{get, web, App, HttpResponse, HttpResponseBuilder, HttpServer, Responder};
-use anyhow::Result;
+use anyhow::{Error, Result};
 use tokio::sync::Mutex;
 
 struct State {
-    conf: config::Config,
     session: Mutex<Session>,
 }
 
@@ -37,17 +36,17 @@ impl Display for WebApiError {
 
 impl actix_web::error::ResponseError for WebApiError {
     fn status_code(&self) -> http::StatusCode {
-        match self {
-            &WebApiError::TimerNotFound => http::StatusCode::NOT_FOUND,
-            &WebApiError::InternalError => http::StatusCode::INTERNAL_SERVER_ERROR,
+        match *self {
+            WebApiError::TimerNotFound => http::StatusCode::NOT_FOUND,
+            WebApiError::InternalError => http::StatusCode::INTERNAL_SERVER_ERROR,
         }
     }
 
     fn error_response(&self) -> HttpResponse<actix_web::body::BoxBody> {
         let mut res = HttpResponseBuilder::new(self.status_code());
-        match self {
-            &WebApiError::TimerNotFound => res.append_header(("Content-Type", "text/plain")),
-            &WebApiError::InternalError => res.append_header(("Content-Type", "text/plain")),
+        match *self {
+            WebApiError::TimerNotFound => res.append_header(("Content-Type", "text/plain")),
+            WebApiError::InternalError => res.append_header(("Content-Type", "text/plain")),
         };
         let body = actix_web::body::BoxBody::new(format!("{}", self));
         res.body(body)
@@ -76,12 +75,10 @@ async fn query_pomodoro_daily(
     }
 }
 
-pub async fn start_server(conf: config::Config, port: u16) -> std::io::Result<()> {
-    let session = crate::sql::Session::connect(&conf)
-        .map_err(|e| std::io::Error::new(ErrorKind::Other, e.to_string()))?;
+pub async fn start_server(conf: config::Config, port: u16) -> Result<()> {
+    let session = crate::sql::Session::connect(&conf)?;
 
     let state = State {
-        conf,
         session: Mutex::new(session),
     };
     let data = web::Data::new(state);
@@ -121,4 +118,5 @@ pub async fn start_server(conf: config::Config, port: u16) -> std::io::Result<()
     .bind(("0.0.0.0", port))?
     .run()
     .await
+    .map_err(Error::new)
 }

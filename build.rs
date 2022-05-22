@@ -12,5 +12,5 @@ fn main() -> std::io::Result<()> {
         .status()
         .unwrap();
     println!("cargo:rerun-if-changed=src/Main.elm");
-    tonic_build::compile_protos("proto/ly/main.proto")
+    Ok(())
 }

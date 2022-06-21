@@ -4,7 +4,7 @@ import Browser exposing (Document)
 import Html exposing (Html, a, div, span, text, header, main_, section, ul, li)
 import Html.Attributes exposing (class, href, style)
 import Html.Events exposing (onClick)
-import Time exposing (every, Posix)
+import Time exposing (every, toYear, toMonth, toDay, toHour, toMinute, toSecond, Posix)
 import Http
 import Json.Decode as D
 import Time
@@ -91,11 +91,11 @@ makeScaleTrans (domainMin, domainMax) (rangeMin, rangeMax) =
 
 type alias ChartAxis =
   { label: String
-  , domainMin: Float
-  , domainMax: Float
-  , rangeMin: Float
-  , rangeMax: Float
-  , scaleView: Float -> String
+  -- , domainMin: Float -- 
+  -- , domainMax: Float 
+  -- , rangeMin: Float -- minimum value of window size
+  -- , rangeMax: Float -- maximum value of window size
+  -- , scaleView: Float -> String
   }
 
 type alias BarChart =
@@ -105,7 +105,7 @@ type alias BarChart =
   , margin: Int
   , width: Int
   , height: Int
-  , data: List (Float, Float)
+  , data: List (Posix, Float)
   }
 
 svgTranslate : Float -> Float -> String
@@ -124,21 +124,21 @@ svgTranslate x y =
 --   in
 --     xPoint
 
-renderYAxisScale : BarChart -> Html Msg
-renderYAxisScale barChar =
-  let
-    domainSpace = barChar.yAxis.domainMax - barChar.yAxis.domainMin
-    valuePosition y = (y - barChar.yAxis.domainMin) / domainSpace
-    tick value =
-      g [ class "tick", Svg.opacity "1", Svg.transform (svgTranslate 0.0 0.0) ]
-        [ line [Svg.stroke "black", Svg.x2 "-6"] []
-        , text_ [Svg.fill "black", Svg.x "-9", Svg.dy "0.32em" ] []
-        ]
-    ticks = []
-    axisLine = line [ Svg.x1 "10%", Svg.y1 "90%", Svg.x2 "90%", Svg.y2 "90%", Svg.stroke "black" ] []
-  in
-    g [ Svg.fill "none", Svg.fontSize "10", Svg.fontFamily "sans-serif", Svg.textAnchor "end" ]
-      (List.concat [ [ axisLine ], ticks ])
+--renderYAxisScale : BarChart -> Html Msg
+--renderYAxisScale barChar =
+--  let
+--    domainSpace = barChar.yAxis.domainMax - barChar.yAxis.domainMin
+--    valuePosition y = (y - barChar.yAxis.domainMin) / domainSpace
+--    tick value =
+--      g [ class "tick", Svg.opacity "1", Svg.transform (svgTranslate 0.0 0.0) ]
+--        [ line [Svg.stroke "black", Svg.x2 "-6"] []
+--        , text_ [Svg.fill "black", Svg.x "-9", Svg.dy "0.32em" ] []
+--        ]
+--    ticks = []
+--    axisLine = line [ Svg.x1 "10%", Svg.y1 "90%", Svg.x2 "90%", Svg.y2 "90%", Svg.stroke "black" ] []
+--  in
+--    g [ Svg.fill "none", Svg.fontSize "10", Svg.fontFamily "sans-serif", Svg.textAnchor "end" ]
+--      (List.concat [ [ axisLine ], ticks ])
 
 testPomodoroDaily : Measurements
 testPomodoroDaily =
@@ -371,23 +371,23 @@ percent v = (String.fromFloat v) ++ "%"
 renderAxis : BarChart -> List (Html Msg)
 renderAxis barChart =
   let
-    startX = []
+    datapoints = barChart.data
   in
     -- x axis
     [ g [ ]
         [ g [ ]
-            [ line [ Svg.x1 "10%", Svg.y1 "90%", Svg.x2 "90%", Svg.y2 "90%", Svg.stroke "black" ] []
+            [ line [ Svg.x1 "5%", Svg.y1 "95%", Svg.x2 "95%", Svg.y2 "95%", Svg.stroke "black" ] []
             , Svg.text_
-                [ Svg.transform "rotate(-90, 20, 150)", Svg.x "20", Svg.y "150" ]
+                [ Svg.x "90%", Svg.y "100%" ]
                 [ text barChart.xAxis.label ]
             ]
         ]
     -- y axis
     , g [  ]
         [ g [  ]
-            [ line [ Svg.x1 "10%", Svg.y1 "10%", Svg.x2 "10%", Svg.y2 "90%", Svg.stroke "black" ] []
+            [ line [ Svg.x1 "5%", Svg.y1 "5%", Svg.x2 "5%", Svg.y2 "95%", Svg.stroke "black" ] []
             , Svg.text_
-                [ Svg.x "350", Svg.y "300" ]
+                [ Svg.transform "rotate(-90, 20, 150)", Svg.x "5%", Svg.y "50%" ]
                 [ text barChart.yAxis.label ]
             ]
         ]
@@ -405,53 +405,49 @@ renderBarChart barChart =
       [ Svg.width <| String.fromInt barChart.width
       , Svg.height <| String.fromInt barChart.height
       ]
-      [ g [ Svg.transform ("translate(" ++ margin ++ "," ++ margin ++ ")") ]
-          svgChart
+      [ g []
+          svgBody
       ]
 
 -- TODO
--- makePomodoroDailyChart : Model -> Maybe BarChart
--- makePomodoroDailyChart model =
---   let
---     yAxis : ChartAxis
---     yAxis =
---       { label = "Pomodoro"
---       , scale = \pomo -> pomo + 1
---       , scaleView = \pomo -> String.fromFloat pomo
---       }
---     xAxis : Time.Zone -> ChartAxis
---     xAxis timeZone =
---       { label = "Date"
---       , scale = \t -> Time.millisToPosix <| (86400 * 1000) + (Time.posixToMillis t)
---       , scaleView = \t ->
---           let
---             month = Time.toMonth timeZone t
---             day = Time.toDay timeZone t
---           in
---             (String.fromInt <| monthInt month) ++ "/" ++ (String.fromInt day)
---       }
---     barChart : Time.Zone -> Measurements -> BarChart
---     barChart timeZone measurements =
---       { title = "Pomodoro Daily"
---       , xAxis = xAxis timeZone
---       , yAxis = yAxis
---       , margin = 50
---       , width = 800
---       , height = 300
---       , data = List.map (\m -> (m.time, m.value)) measurements.data
---       }
---   in
---     Maybe.andThen (\timeZone -> Maybe.map (barChart timeZone) model.pomodoroDaily) model.timeZone
+makePomodoroDailyChart : Model -> Maybe BarChart
+makePomodoroDailyChart model =
+  let
+    yAxis : ChartAxis
+    yAxis =
+      { label = "Pomodoro"
+      -- , scale = \pomo -> pomo + 1
+      -- , scaleView = \pomo -> String.fromFloat pomo
+      }
+    xAxis : Time.Zone -> ChartAxis
+    xAxis timeZone =
+      { label = "Date"
+      --, scale = \t -> Time.millisToPosix <| (86400 * 1000) + (Time.posixToMillis t)
+      --, scaleView = \t ->
+      --    let
+      --      month = Time.toMonth timeZone t
+      --      day = Time.toDay timeZone t
+      --    in
+      --      (String.fromInt <| monthInt month) ++ "/" ++ (String.fromInt day)
+      }
+    barChart : Time.Zone -> Measurements -> BarChart
+    barChart timeZone measurements =
+      { title = "Pomodoro Daily"
+      , xAxis = xAxis timeZone
+      , yAxis = yAxis
+      , margin = 10
+      , width = 1000
+      , height = 300
+      , data = List.map (\m -> (m.time, m.value)) measurements.data
+      }
+  in
+    Maybe.andThen (\timeZone -> Maybe.map (barChart timeZone) model.pomodoroDaily) model.timeZone
 
 renderPomodoroDaily : Model -> Html Msg
 renderPomodoroDaily model =
-  -- TODO
-  -- case makePomodoroDailyChart model of
-  --    Just chart -> renderBarChart chart
-  --    Nothing -> div [] []
-
-  -- FIXME
-  div [] []
+  case makePomodoroDailyChart model of
+     Just chart -> renderBarChart chart
+     Nothing -> div [] [ text "No pomodoro activities" ]
 
 view : Model -> Document Msg
 view model =

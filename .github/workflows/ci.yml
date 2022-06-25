@@ -13,6 +13,8 @@ jobs:
           profile: minimal
           toolchain: stable
           override: true
+      - uses: Swatinem/rust-cache@v1
+        with: { sharedKey: ci }
       - uses: jorelali/setup-elm@v2
         with:
           elm-version: 0.19.1

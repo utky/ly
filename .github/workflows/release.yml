@@ -12,12 +12,13 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v2
-
       - uses: actions-rs/toolchain@v1
         with:
           profile: minimal
           toolchain: stable
           override: true
+      - uses: Swatinem/rust-cache@v1
+        with: { sharedKey: release }
       - uses: jorelali/setup-elm@v2
         with:
           elm-version: 0.19.1

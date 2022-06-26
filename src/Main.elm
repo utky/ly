@@ -426,7 +426,7 @@ makePomodoroDailyChart model =
       , width = 1000
       , height = 300
       -- , data = List.map (\m -> (m.time, m.value)) measurements.data
-      , data = List.map (\m -> (m.time, m.value)) testPomodoroDaily.data
+      , data = List.map (\m -> (m.time, m.value)) measurements.data
       }
   in
     Maybe.map2 barChart model.timeZone model.pomodoroDaily

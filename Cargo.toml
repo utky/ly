@@ -1,6 +1,6 @@
 [package]
 name = "ly"
-version = "0.1.5"
+version = "0.1.6"
 authors = ["utky <ilyaletre@gmail.com>"]
 edition = "2021"
 
@@ -10,7 +10,7 @@ edition = "2021"
 anyhow = "1.0.57"
 chrono = { version = "0.4.19", features = ["serde"] }
 clap = { version = "3.0.14", features = ["derive"] }
-rusqlite = { version = "0.27.0", features = ["chrono"] }
+rusqlite = { version = "0.27.0", features = ["chrono", "bundled"] }
 tokio = { version = "1.18.1", features = ["full"] }
 actix-web = "4"
 uuid = { version = "1.0.0", features = ["v4"] }

@@ -305,7 +305,7 @@ update msg model =
 
     MeasurementsSuccess measurements ->
       if measurements.instrument == "pomodoro.daily" then
-        ({ model | pomodoroDaily = Just testPomodoroDaily }, Cmd.none)
+        ({ model | pomodoroDaily = Just measurements }, Cmd.none)
       else
         (model, Cmd.none)
 

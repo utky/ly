@@ -13,10 +13,16 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v2
+      - name: Install musl-tools
+        run: |
+          set -ex
+          sudo apt-get update
+          sudo apt-get install -y musl-tools
       - uses: actions-rs/toolchain@v1
         with:
           profile: minimal
           toolchain: stable
+          target: x86_64-unknown-linux-musl
           override: true
       - uses: Swatinem/rust-cache@v1
         with: { sharedKey: ci }
@@ -42,3 +48,4 @@ jobs:
         uses: actions-rs/cargo@v1
         with:
           command: test
+          args: --target x86_64-unknown-linux-musl

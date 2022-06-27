@@ -75,7 +75,7 @@ async fn query_pomodoro_daily(
     }
 }
 
-pub async fn start_server(conf: config::Config, port: u16) -> Result<()> {
+pub async fn start_server(conf: config::Config, address: String, port: u16) -> Result<()> {
     let session = crate::sql::Session::connect(&conf)?;
 
     let state = State {
@@ -115,7 +115,7 @@ pub async fn start_server(conf: config::Config, port: u16) -> Result<()> {
                     .service(query_pomodoro_daily),
             )
     })
-    .bind(("0.0.0.0", port))?
+    .bind((address, port))?
     .run()
     .await
     .map_err(Error::new)

@@ -28,6 +28,9 @@ enum Command {
     Init {},
     /// Start ly server
     Server {
+        /// Address to bind
+        #[clap(short, long, default_value_t = String::from("0.0.0.0"))]
+        address: String,
         /// Port number to listen
         #[clap(short, long)]
         port: u16,
@@ -204,7 +207,7 @@ async fn main() -> Result<()> {
             session.initialize()?;
             Ok(())
         }
-        Command::Server { port } => web::start_server(conf, port).await,
+        Command::Server { address, port } => web::start_server(conf, address, port).await,
         Command::Start { id, duration } => start_pomodoro(&conf, id, duration),
         Command::Break { break_type } => start_break(&conf, break_type),
         Command::Task { task_command } => match task_command {
